@@ -1,0 +1,231 @@
+name: 🚀 快速测试
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: '测试类型'
+        required: true
+        default: 'basic'
+        type: choice
+        options:
+        - 'basic'      # 基础功能测试
+        - 'docker'     # Docker容器测试
+        - 'full'       # 完整功能测试
+      skip_build:
+        description: '跳过构建步骤'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  quick-test:
+    name: 🧪 快速测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: 📥 检出代码
+      uses: actions/checkout@v4
+
+    - name: 🐍 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 📦 安装系统依赖
+      run: |
+        echo "📦 更新系统包..."
+        sudo apt-get update
+        echo "🎬 安装FFmpeg..."
+        sudo apt-get install -y ffmpeg
+        echo "✅ 系统依赖安装完成"
+
+    - name: 🔧 安装Python依赖
+      run: |
+        echo "🔧 升级pip..."
+        python -m pip install --upgrade pip
+        echo "📚 安装项目依赖..."
+        pip install -r requirements.txt
+        echo "✅ Python依赖安装完成"
+
+    - name: 📁 创建必要目录
+      run: |
+        echo "📁 创建目录结构..."
+        mkdir -p downloads temp logs data data/cookies
+        echo "✅ 目录创建完成"
+
+    - name: 🔍 运行依赖检查
+      run: |
+        echo "🔍 检查系统依赖..."
+        python check_dependencies.py
+        echo "✅ 依赖检查完成"
+
+    - name: 🧪 基础功能测试
+      if: ${{ inputs.test_type == 'basic' || inputs.test_type == 'full' }}
+      run: |
+        echo "🧪 运行基础功能测试..."
+        
+        # 测试Python模块导入
+        python -c "
+        print('🔍 测试模块导入...')
+        try:
+            from app.core.database import Database
+            print('✅ 数据库模块: OK')
+        except Exception as e:
+            print(f'❌ 数据库模块: {e}')
+            
+        try:
+            from app.core.auth import AuthManager
+            print('✅ 认证模块: OK')
+        except Exception as e:
+            print(f'❌ 认证模块: {e}')
+            
+        try:
+            from app.modules.downloader.manager import DownloadManager
+            print('✅ 下载模块: OK')
+        except Exception as e:
+            print(f'❌ 下载模块: {e}')
+            
+        try:
+            from app.modules.telegram.notifier import TelegramNotifier
+            print('✅ Telegram模块: OK')
+        except Exception as e:
+            print(f'❌ Telegram模块: {e}')
+        
+        print('🎉 模块导入测试完成')
+        "
+        
+        # 测试数据库初始化
+        python -c "
+        print('🗄️ 测试数据库初始化...')
+        try:
+            from app.core.database import Database
+            db = Database()
+            db.init_db()
+            print('✅ 数据库初始化: OK')
+        except Exception as e:
+            print(f'❌ 数据库初始化: {e}')
+        "
+        
+        echo "✅ 基础功能测试完成"
+
+    - name: 🚀 应用启动测试
+      if: ${{ inputs.test_type == 'full' }}
+      run: |
+        echo "🚀 测试应用启动..."
+        
+        # 后台启动应用
+        python app/main.py &
+        APP_PID=$!
+        
+        # 等待启动
+        echo "⏳ 等待应用启动..."
+        sleep 15
+        
+        # 检查进程
+        if ps -p $APP_PID > /dev/null; then
+          echo "✅ 应用进程运行正常"
+        else
+          echo "❌ 应用进程启动失败"
+          exit 1
+        fi
+        
+        # 简单健康检查
+        for i in {1..5}; do
+          if curl -f http://localhost:8080/ >/dev/null 2>&1; then
+            echo "✅ 应用响应正常"
+            break
+          fi
+          echo "⏳ 等待应用响应... ($i/5)"
+          sleep 5
+          if [ $i -eq 5 ]; then
+            echo "❌ 应用响应超时"
+            kill $APP_PID || true
+            exit 1
+          fi
+        done
+        
+        # 停止应用
+        kill $APP_PID || true
+        echo "✅ 应用启动测试完成"
+
+    - name: 🐳 Docker构建测试
+      if: ${{ inputs.test_type == 'docker' || inputs.test_type == 'full' }}
+      run: |
+        echo "🐳 测试Docker构建..."
+        
+        # 构建镜像
+        docker build -t yt-dlp-web-test:latest .
+        echo "✅ Docker镜像构建完成"
+        
+        # 启动容器
+        docker run -d \
+          --name yt-dlp-test \
+          -p 8080:8080 \
+          -e SECRET_KEY=test-secret \
+          yt-dlp-web-test:latest
+        
+        # 等待容器启动
+        echo "⏳ 等待容器启动..."
+        sleep 20
+        
+        # 检查容器状态
+        if docker ps | grep yt-dlp-test; then
+          echo "✅ 容器启动成功"
+        else
+          echo "❌ 容器启动失败"
+          echo "📋 容器日志:"
+          docker logs yt-dlp-test
+          exit 1
+        fi
+        
+        # 简单健康检查
+        for i in {1..5}; do
+          if curl -f http://localhost:8080/ >/dev/null 2>&1; then
+            echo "✅ 容器服务响应正常"
+            break
+          fi
+          echo "⏳ 等待容器服务... ($i/5)"
+          sleep 5
+          if [ $i -eq 5 ]; then
+            echo "❌ 容器服务响应超时"
+            docker logs yt-dlp-test
+            exit 1
+          fi
+        done
+        
+        echo "✅ Docker测试完成"
+
+    - name: 🧹 清理测试环境
+      if: always()
+      run: |
+        echo "🧹 清理测试环境..."
+        
+        # 停止并删除容器
+        docker stop yt-dlp-test >/dev/null 2>&1 || true
+        docker rm yt-dlp-test >/dev/null 2>&1 || true
+        docker rmi yt-dlp-web-test:latest >/dev/null 2>&1 || true
+        
+        # 清理测试文件
+        rm -rf downloads/* temp/* logs/* data/* || true
+        
+        echo "✅ 清理完成"
+
+    - name: 📊 测试总结
+      if: always()
+      run: |
+        echo "📊 测试总结"
+        echo "===================="
+        echo "🧪 测试类型: ${{ inputs.test_type }}"
+        echo "🐍 Python版本: $(python --version)"
+        echo "🎬 FFmpeg版本: $(ffmpeg -version 2>&1 | head -n1)"
+        echo "🐳 Docker版本: $(docker --version)"
+        echo "⏰ 测试时间: $(date)"
+        echo "===================="
+        
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "🎉 所有测试通过！"
+        else
+          echo "❌ 部分测试失败，请查看日志"
+        fi
