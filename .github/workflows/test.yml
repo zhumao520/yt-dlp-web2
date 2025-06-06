@@ -1,0 +1,126 @@
+name: 代码测试
+
+on:
+  workflow_dispatch:
+    inputs:
+      python_versions:
+        description: 'Python版本'
+        required: true
+        default: '["3.11"]'
+        type: choice
+        options:
+        - '["3.9"]'
+        - '["3.10"]'
+        - '["3.11"]'
+        - '["3.12"]'
+        - '["3.9", "3.10", "3.11", "3.12"]'
+      run_lint:
+        description: '是否运行代码检查'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  test:
+    name: 🧪 Python测试
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ${{ fromJSON(inputs.python_versions) }}
+
+    steps:
+    - name: 📥 检出代码仓库
+      uses: actions/checkout@v4
+
+    - name: 🐍 设置Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: 📦 安装系统依赖
+      run: |
+        echo "📦 更新系统包..."
+        sudo apt-get update
+        echo "🎬 安装FFmpeg..."
+        sudo apt-get install -y ffmpeg
+        echo "✅ 系统依赖安装完成"
+
+    - name: 🔧 安装Python依赖
+      run: |
+        echo "🔧 升级pip..."
+        python -m pip install --upgrade pip
+        echo "📚 安装项目依赖..."
+        pip install -r requirements.txt
+        echo "🧪 安装测试依赖..."
+        pip install pytest pytest-cov pytest-asyncio
+        echo "✅ Python依赖安装完成"
+
+    - name: 📁 创建测试目录
+      run: |
+        echo "📁 创建必要目录..."
+        mkdir -p downloads temp logs data
+        echo "✅ 测试目录创建完成"
+
+    - name: 🧪 运行测试
+      run: |
+        echo "🧪 开始运行测试..."
+        pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml
+        echo "✅ 测试运行完成"
+
+    - name: 📊 上传覆盖率报告
+      if: matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  lint:
+    name: 🔍 代码质量检查
+    runs-on: ubuntu-latest
+    if: ${{ inputs.run_lint }}
+
+    steps:
+    - name: 📥 检出代码仓库
+      uses: actions/checkout@v4
+
+    - name: 🐍 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 🔧 安装检查工具
+      run: |
+        echo "🔧 升级pip..."
+        python -m pip install --upgrade pip
+        echo "🛠️ 安装代码检查工具..."
+        pip install flake8 black isort
+        echo "✅ 检查工具安装完成"
+
+    - name: 🔍 Flake8语法检查
+      run: |
+        echo "🔍 运行Flake8语法检查..."
+        echo "❌ 检查严重错误..."
+        flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        echo "⚠️ 检查代码质量..."
+        flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        echo "✅ Flake8检查完成"
+
+    - name: 🎨 Black代码格式检查
+      run: |
+        echo "🎨 检查代码格式..."
+        black --check app/
+        echo "✅ 代码格式检查通过"
+
+    - name: 📦 Import排序检查
+      run: |
+        echo "📦 检查import排序..."
+        isort --check-only app/
+        echo "✅ Import排序检查通过"
+
+    - name: 📊 输出检查摘要
+      run: |
+        echo "🎉 所有代码质量检查通过！"
+        echo "✅ 语法检查: 通过"
+        echo "✅ 格式检查: 通过"
+        echo "✅ 排序检查: 通过"
