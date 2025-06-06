@@ -55,7 +55,7 @@ class TestPages:
         """测试登录页面"""
         response = client.get("/auth/login")
         assert response.status_code == 200
-        assert b"login" in response.data.lower() or b"登录" in response.data
+        assert b"login" in response.data.lower() or "登录".encode('utf-8') in response.data
 
     def test_setup_page(self, client):
         """测试设置页面"""

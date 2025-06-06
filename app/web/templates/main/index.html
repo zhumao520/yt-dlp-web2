@@ -216,7 +216,13 @@ function downloadApp() {
                 if (response.ok) {
                     const data = await response.json();
                     this.videoInfo = data.video_info;
-                    this.$nextTick(() => feather.replace());
+                    this.$nextTick(() => {
+                        try {
+                            feather.replace();
+                        } catch (e) {
+                            console.warn('Feather icons replace failed:', e);
+                        }
+                    });
                 } else {
                     showNotification('获取视频信息失败', 'error');
                 }

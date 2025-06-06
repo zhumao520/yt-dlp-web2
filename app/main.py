@@ -78,7 +78,7 @@ def main():
         with app.app_context():
             from app.core.database import get_database
             db = get_database()
-            db.init_db()
+            # 数据库在get_database()时已自动初始化
             logger.info("✅ 数据库初始化完成")
 
         # 获取配置
