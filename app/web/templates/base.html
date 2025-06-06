@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN" x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }" 
+      :class="{ 'dark': darkMode }">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}YT-DLP Web V2{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Feather Icons -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    
+    <!-- 自定义样式 -->
+    <style>
+        [x-cloak] { display: none !important; }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .progress-bar {
+            transition: width 0.3s ease-in-out;
+        }
+        
+        .btn-primary {
+            @apply bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+        }
+        
+        .btn-secondary {
+            @apply bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+        }
+        
+        .input-field {
+            @apply w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200;
+        }
+        
+        .card {
+            @apply bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700;
+        }
+    </style>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200">
+    
+    <!-- 导航栏 -->
+    {% if not hide_nav %}
+    <nav class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <!-- 左侧 Logo 和导航 -->
+                <div class="flex items-center space-x-8">
+                    <!-- Logo -->
+                    <div class="flex-shrink-0 flex items-center">
+                        <h1 class="text-xl font-bold text-primary-600 dark:text-primary-400">
+                            YT-DLP Web V2
+                        </h1>
+                    </div>
+                    
+                    <!-- 主导航 -->
+                    <div class="hidden md:flex space-x-6">
+                        <a href="{{ url_for('main.download') }}" 
+                           class="nav-link flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                            <i data-feather="download" class="w-4 h-4"></i>
+                            <span>下载</span>
+                        </a>
+                        
+                        <a href="{{ url_for('main.files') }}" 
+                           class="nav-link flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                            <i data-feather="folder" class="w-4 h-4"></i>
+                            <span>文件</span>
+                        </a>
+                        
+                        <a href="{{ url_for('main.history') }}" 
+                           class="nav-link flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                            <i data-feather="clock" class="w-4 h-4"></i>
+                            <span>历史</span>
+                        </a>
+                        
+                        <a href="{{ url_for('main.telegram') }}" 
+                           class="nav-link flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                            <i data-feather="send" class="w-4 h-4"></i>
+                            <span>Telegram</span>
+                        </a>
+                        
+                        <a href="{{ url_for('main.cookies') }}" 
+                           class="nav-link flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                            <i data-feather="key" class="w-4 h-4"></i>
+                            <span>Cookies</span>
+                        </a>
+                        
+                        <a href="{{ url_for('main.settings') }}" 
+                           class="nav-link flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                            <i data-feather="settings" class="w-4 h-4"></i>
+                            <span>设置</span>
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- 右侧用户菜单和主题切换 -->
+                <div class="flex items-center space-x-4">
+                    <!-- 主题切换 -->
+                    <button @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)" 
+                            class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                        <i data-feather="sun" class="w-5 h-5" x-show="darkMode"></i>
+                        <i data-feather="moon" class="w-5 h-5" x-show="!darkMode"></i>
+                    </button>
+                    
+                    <!-- 用户菜单 -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" 
+                                class="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                            <i data-feather="user" class="w-5 h-5"></i>
+                            <span class="hidden md:block text-sm">用户</span>
+                            <i data-feather="chevron-down" class="w-4 h-4"></i>
+                        </button>
+                        
+                        <div x-show="open" @click.away="open = false" x-cloak
+                             class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                            <a href="{{ url_for('auth.logout') }}" 
+                               class="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                                <i data-feather="log-out" class="w-4 h-4 inline mr-2"></i>
+                                退出登录
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- 移动端菜单按钮 -->
+                    <button class="md:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+                            x-data="{ mobileMenuOpen: false }" @click="mobileMenuOpen = !mobileMenuOpen">
+                        <i data-feather="menu" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+    
+    <!-- 主内容区域 -->
+    <main class="{% if not hide_nav %}pt-4{% endif %}">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- 全局通知 -->
+    <div id="notifications" class="fixed top-4 right-4 z-50 space-y-2"></div>
+    
+    <!-- 全局脚本 -->
+    <script>
+        // 初始化 Feather Icons
+        document.addEventListener('DOMContentLoaded', function() {
+            feather.replace();
+        });
+        
+        // 全局通知函数
+        window.showNotification = function(message, type = 'info', duration = 3000) {
+            const notification = document.createElement('div');
+            notification.className = `notification fade-in px-4 py-3 rounded-lg shadow-lg max-w-sm ${
+                type === 'success' ? 'bg-green-500 text-white' :
+                type === 'error' ? 'bg-red-500 text-white' :
+                type === 'warning' ? 'bg-yellow-500 text-white' :
+                'bg-blue-500 text-white'
+            }`;
+            notification.textContent = message;
+            
+            document.getElementById('notifications').appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, duration);
+        };
+        
+        // 全局API请求函数
+        window.apiRequest = async function(url, options = {}) {
+            const token = localStorage.getItem('auth_token');
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                }
+            };
+            
+            const response = await fetch(url, { ...defaultOptions, ...options });
+            
+            if (response.status === 401) {
+                localStorage.removeItem('auth_token');
+                window.location.href = '/auth/login';
+                return;
+            }
+            
+            return response;
+        };
+        
+        // 设置当前导航项为活跃状态
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentPath = window.location.pathname;
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            navLinks.forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('bg-primary-100', 'dark:bg-primary-900', 'text-primary-700', 'dark:text-primary-300');
+                }
+            });
+        });
+    </script>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

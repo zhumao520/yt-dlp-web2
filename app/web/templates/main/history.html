@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+
+{% block title %}下载历史 - YT-DLP Web V2{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6" x-data="historyApp()">
+    
+    <!-- 页面标题 -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">下载历史</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">查看所有下载记录和状态</p>
+    </div>
+    
+    <!-- 统计卡片 -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="card p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                    <i data-feather="list" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">总下载数</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white" x-text="stats.total"></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                    <i data-feather="check-circle" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">成功</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white" x-text="stats.completed"></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
+                    <i data-feather="clock" class="w-6 h-6 text-yellow-600 dark:text-yellow-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">进行中</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white" x-text="stats.active"></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                    <i data-feather="x-circle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">失败</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white" x-text="stats.failed"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 过滤和搜索 -->
+    <div class="card p-4 mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <!-- 搜索 -->
+                <div class="relative">
+                    <input type="text" 
+                           x-model="searchQuery" 
+                           @input="filterDownloads()"
+                           class="input-field pl-10 w-64" 
+                           placeholder="搜索标题或URL...">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i data-feather="search" class="w-5 h-5 text-gray-400"></i>
+                    </div>
+                </div>
+                
+                <!-- 状态过滤 -->
+                <select x-model="statusFilter" @change="filterDownloads()" class="input-field">
+                    <option value="all">所有状态</option>
+                    <option value="completed">已完成</option>
+                    <option value="downloading">下载中</option>
+                    <option value="pending">等待中</option>
+                    <option value="failed">失败</option>
+                    <option value="cancelled">已取消</option>
+                </select>
+                
+                <!-- 来源过滤 -->
+                <select x-model="sourceFilter" @change="filterDownloads()" class="input-field">
+                    <option value="all">所有来源</option>
+                    <option value="web_interface">网页界面</option>
+                    <option value="telegram_webhook">Telegram机器人</option>
+                    <option value="api">API接口</option>
+                </select>
+            </div>
+            
+            <div class="flex items-center space-x-2">
+                <button @click="refreshHistory()" class="btn-secondary">
+                    <i data-feather="refresh-cw" class="w-4 h-4 mr-2"></i>
+                    刷新
+                </button>
+                
+                <button @click="clearHistory()" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg">
+                    <i data-feather="trash-2" class="w-4 h-4 mr-2"></i>
+                    清空历史
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 下载列表 -->
+    <div class="space-y-4">
+        <template x-for="download in filteredDownloads" :key="download.id">
+            <div class="card p-6">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <!-- 标题和URL -->
+                        <div class="mb-3">
+                            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1" 
+                                x-text="download.title || '获取信息中...'"></h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 break-all" 
+                               x-text="download.url"></p>
+                        </div>
+                        
+                        <!-- 进度条 -->
+                        <div x-show="download.status === 'downloading'" class="mb-3">
+                            <div class="flex items-center justify-between text-sm mb-1">
+                                <span class="text-gray-600 dark:text-gray-400">下载进度</span>
+                                <span class="text-gray-900 dark:text-white" x-text="`${download.progress}%`"></span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div class="bg-blue-500 h-2 rounded-full progress-bar" 
+                                     :style="`width: ${download.progress}%`"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 文件信息 -->
+                        <div x-show="download.status === 'completed' && download.filename" class="mb-3">
+                            <div class="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                <i data-feather="file" class="w-4 h-4 mr-2"></i>
+                                <span x-text="download.filename"></span>
+                                <span x-show="download.file_size" class="ml-2">
+                                    (<span x-text="formatSize(download.file_size)"></span>)
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- 错误信息 -->
+                        <div x-show="download.status === 'failed' && download.error_message" 
+                             class="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                            <div class="flex items-start">
+                                <i data-feather="alert-circle" class="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 mr-2"></i>
+                                <span class="text-sm text-red-800 dark:text-red-400" x-text="download.error_message"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- 元信息 -->
+                        <div class="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
+                            <span>ID: <code x-text="download.id"></code></span>
+                            <span>创建时间: <span x-text="formatDate(download.created_at)"></span></span>
+                            <span x-show="download.completed_at">
+                                完成时间: <span x-text="formatDate(download.completed_at)"></span>
+                            </span>
+                            <span x-show="download.options?.source">
+                                来源: <span x-text="getSourceName(download.options.source)"></span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- 状态和操作 -->
+                    <div class="flex items-center space-x-3 ml-4">
+                        <!-- 状态标签 -->
+                        <span class="px-2 py-1 text-xs rounded-full"
+                              :class="getStatusClass(download.status)"
+                              x-text="getStatusText(download.status)"></span>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="flex items-center space-x-2">
+                            <!-- 下载文件 -->
+                            <button x-show="download.status === 'completed' && download.filename"
+                                    @click="downloadFile(download.filename)"
+                                    class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                                <i data-feather="download" class="w-4 h-4"></i>
+                            </button>
+                            
+                            <!-- 重新下载 -->
+                            <button x-show="download.status === 'failed'"
+                                    @click="retryDownload(download.url)"
+                                    class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300">
+                                <i data-feather="refresh-ccw" class="w-4 h-4"></i>
+                            </button>
+                            
+                            <!-- 取消下载 -->
+                            <button x-show="download.status === 'downloading'"
+                                    @click="cancelDownload(download.id)"
+                                    class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
+                                <i data-feather="x" class="w-4 h-4"></i>
+                            </button>
+                            
+                            <!-- 删除记录 -->
+                            <button @click="deleteRecord(download.id)"
+                                    class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300">
+                                <i data-feather="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+        
+        <!-- 空状态 -->
+        <div x-show="filteredDownloads.length === 0" class="card p-12 text-center">
+            <i data-feather="inbox" class="w-12 h-12 mx-auto mb-4 text-gray-400"></i>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">暂无下载记录</h3>
+            <p class="text-gray-500 dark:text-gray-400">
+                <span x-show="searchQuery || statusFilter !== 'all' || sourceFilter !== 'all'">
+                    没有找到匹配的下载记录
+                </span>
+                <span x-show="!searchQuery && statusFilter === 'all' && sourceFilter === 'all'">
+                    还没有任何下载记录
+                </span>
+            </p>
+        </div>
+    </div>
+    
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function historyApp() {
+    return {
+        downloads: [],
+        filteredDownloads: [],
+        searchQuery: '',
+        statusFilter: 'all',
+        sourceFilter: 'all',
+        stats: {
+            total: 0,
+            completed: 0,
+            active: 0,
+            failed: 0
+        },
+        
+        async init() {
+            await this.loadHistory();
+            this.startPolling();
+        },
+        
+        async loadHistory() {
+            try {
+                const response = await apiRequest('/api/download/list');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.downloads = data.downloads;
+                    this.calculateStats();
+                    this.filterDownloads();
+                    this.$nextTick(() => feather.replace());
+                }
+            } catch (error) {
+                console.error('加载下载历史失败:', error);
+                showNotification('加载下载历史失败', 'error');
+            }
+        },
+        
+        calculateStats() {
+            this.stats = {
+                total: this.downloads.length,
+                completed: this.downloads.filter(d => d.status === 'completed').length,
+                active: this.downloads.filter(d => ['pending', 'downloading'].includes(d.status)).length,
+                failed: this.downloads.filter(d => d.status === 'failed').length
+            };
+        },
+        
+        filterDownloads() {
+            let filtered = this.downloads;
+            
+            // 搜索过滤
+            if (this.searchQuery) {
+                const query = this.searchQuery.toLowerCase();
+                filtered = filtered.filter(download => 
+                    (download.title && download.title.toLowerCase().includes(query)) ||
+                    download.url.toLowerCase().includes(query)
+                );
+            }
+            
+            // 状态过滤
+            if (this.statusFilter !== 'all') {
+                filtered = filtered.filter(download => download.status === this.statusFilter);
+            }
+            
+            // 来源过滤
+            if (this.sourceFilter !== 'all') {
+                filtered = filtered.filter(download => 
+                    download.options?.source === this.sourceFilter
+                );
+            }
+            
+            this.filteredDownloads = filtered;
+        },
+        
+        async refreshHistory() {
+            await this.loadHistory();
+            showNotification('历史记录已刷新', 'success');
+        },
+        
+        async clearHistory() {
+            if (!confirm('确定要清空所有下载历史吗？此操作不可恢复！')) return;
+            
+            try {
+                // 这里需要实现清空历史的API
+                showNotification('历史记录清空功能待实现', 'warning');
+            } catch (error) {
+                showNotification('清空历史失败', 'error');
+            }
+        },
+        
+        async retryDownload(url) {
+            try {
+                const response = await apiRequest('/api/download/start', {
+                    method: 'POST',
+                    body: JSON.stringify({ url })
+                });
+                
+                if (response.ok) {
+                    showNotification('重新下载已开始', 'success');
+                    await this.loadHistory();
+                } else {
+                    showNotification('重新下载失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
+            }
+        },
+        
+        async cancelDownload(downloadId) {
+            try {
+                const response = await apiRequest(`/api/download/cancel/${downloadId}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    showNotification('下载已取消', 'success');
+                    await this.loadHistory();
+                } else {
+                    showNotification('取消下载失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
+            }
+        },
+        
+        async deleteRecord(downloadId) {
+            if (!confirm('确定要删除这条下载记录吗？')) return;
+            
+            try {
+                // 这里需要实现删除记录的API
+                showNotification('删除记录功能待实现', 'warning');
+            } catch (error) {
+                showNotification('删除记录失败', 'error');
+            }
+        },
+        
+        downloadFile(filename) {
+            window.open(`/files/download/${filename}`, '_blank');
+        },
+        
+        startPolling() {
+            setInterval(async () => {
+                if (this.stats.active > 0) {
+                    await this.loadHistory();
+                }
+            }, 3000);
+        },
+        
+        getStatusClass(status) {
+            const classes = {
+                'pending': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+                'downloading': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+                'completed': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+                'failed': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+                'cancelled': 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
+            };
+            return classes[status] || classes['pending'];
+        },
+        
+        getStatusText(status) {
+            const texts = {
+                'pending': '等待中',
+                'downloading': '下载中',
+                'completed': '已完成',
+                'failed': '失败',
+                'cancelled': '已取消'
+            };
+            return texts[status] || '未知';
+        },
+        
+        getSourceName(source) {
+            const names = {
+                'web_interface': '网页界面',
+                'telegram_webhook': 'Telegram机器人',
+                'api': 'API接口'
+            };
+            return names[source] || source;
+        },
+        
+        formatSize(bytes) {
+            if (!bytes) return '';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        },
+        
+        formatDate(dateString) {
+            if (!dateString) return '';
+            return new Date(dateString).toLocaleString('zh-CN');
+        }
+    }
+}
+</script>
+{% endblock %}

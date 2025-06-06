@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Telegram配置 - YT-DLP Web V2{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6" x-data="telegramApp()">
+    
+    <!-- 页面标题 -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Telegram配置</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">配置Telegram机器人推送和自动下载功能</p>
+    </div>
+    
+    <!-- 配置状态卡片 -->
+    <div class="card p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold flex items-center">
+                <i data-feather="activity" class="w-5 h-5 mr-2"></i>
+                连接状态
+            </h2>
+            <button @click="testConnection()" 
+                    :disabled="testing"
+                    class="btn-secondary">
+                <template x-if="testing">
+                    <div class="flex items-center">
+                        <svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        测试中...
+                    </div>
+                </template>
+                <template x-if="!testing">
+                    <div class="flex items-center">
+                        <i data-feather="wifi" class="w-4 h-4 mr-2"></i>
+                        测试连接
+                    </div>
+                </template>
+            </button>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
+                <div class="flex items-center">
+                    <i data-feather="message-circle" class="w-5 h-5 mr-3"></i>
+                    <span>Bot API</span>
+                </div>
+                <div class="ml-auto flex items-center">
+                    <i :data-feather="connectionStatus.bot_api ? 'check' : 'x'" 
+                       :class="connectionStatus.bot_api ? 'text-green-500' : 'text-red-500'" 
+                       class="w-5 h-5"></i>
+                    <span class="ml-2 text-sm" 
+                          :class="connectionStatus.bot_api ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+                        <span x-text="connectionStatus.bot_api ? '正常' : '异常'"></span>
+                    </span>
+                </div>
+            </div>
+            
+            <div class="flex items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
+                <div class="flex items-center">
+                    <i data-feather="upload" class="w-5 h-5 mr-3"></i>
+                    <span>Pyrogram</span>
+                </div>
+                <div class="ml-auto flex items-center">
+                    <i :data-feather="connectionStatus.pyrogram ? 'check' : 'x'" 
+                       :class="connectionStatus.pyrogram ? 'text-green-500' : 'text-red-500'" 
+                       class="w-5 h-5"></i>
+                    <span class="ml-2 text-sm" 
+                          :class="connectionStatus.pyrogram ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+                        <span x-text="connectionStatus.pyrogram ? '正常' : '异常'"></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 基础配置 -->
+    <div class="card p-6 mb-6">
+        <h2 class="text-lg font-semibold mb-4 flex items-center">
+            <i data-feather="settings" class="w-5 h-5 mr-2"></i>
+            基础配置
+        </h2>
+        
+        <form @submit.prevent="saveConfig()" class="space-y-4">
+            <!-- 启用开关 -->
+            <div class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+                <div>
+                    <h3 class="font-medium">启用Telegram功能</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">开启后可以接收推送通知和使用机器人下载</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" x-model="config.enabled" class="sr-only peer">
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                </label>
+            </div>
+            
+            <!-- Bot配置 -->
+            <div x-show="config.enabled" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Bot Token</label>
+                    <input type="text" x-model="config.bot_token" class="input-field" 
+                           placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
+                    <p class="text-xs text-gray-500 mt-1">从 @BotFather 获取的机器人令牌</p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">Chat ID</label>
+                    <input type="text" x-model="config.chat_id" class="input-field" 
+                           placeholder="-1001234567890">
+                    <p class="text-xs text-gray-500 mt-1">接收消息的聊天ID，可以是个人或群组</p>
+                </div>
+                
+                <!-- Pyrogram配置 -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <h3 class="font-medium mb-3">Pyrogram配置 (大文件支持)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">API ID</label>
+                            <input type="number" x-model="config.api_id" class="input-field" 
+                                   placeholder="12345678">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium mb-2">API Hash</label>
+                            <input type="text" x-model="config.api_hash" class="input-field" 
+                                   placeholder="abcdef1234567890abcdef1234567890">
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">
+                        从 <a href="https://my.telegram.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">my.telegram.org</a> 获取，用于发送大文件
+                    </p>
+                </div>
+                
+                <!-- 推送模式 -->
+                <div>
+                    <label class="block text-sm font-medium mb-2">推送模式</label>
+                    <select x-model="config.push_mode" class="input-field">
+                        <option value="notification">仅通知消息</option>
+                        <option value="file">仅发送文件</option>
+                        <option value="both">通知+文件</option>
+                    </select>
+                </div>
+                
+                <!-- 自动下载 -->
+                <div class="flex items-center">
+                    <input type="checkbox" x-model="config.auto_download" 
+                           class="mr-2" id="auto_download">
+                    <label for="auto_download" class="text-sm">
+                        启用机器人自动下载 (发送链接给机器人自动下载)
+                    </label>
+                </div>
+                
+                <!-- 文件大小限制 -->
+                <div>
+                    <label class="block text-sm font-medium mb-2">文件大小限制 (MB)</label>
+                    <input type="number" x-model="config.file_size_limit" class="input-field" 
+                           min="1" max="2000" placeholder="50">
+                    <p class="text-xs text-gray-500 mt-1">超过此大小的文件需要Pyrogram支持</p>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn-primary">
+                <i data-feather="save" class="w-4 h-4 mr-2"></i>
+                保存配置
+            </button>
+        </form>
+    </div>
+    
+    <!-- 机器人使用说明 -->
+    <div x-show="config.enabled && config.auto_download" class="card p-6">
+        <h2 class="text-lg font-semibold mb-4 flex items-center">
+            <i data-feather="help-circle" class="w-5 h-5 mr-2"></i>
+            使用说明
+        </h2>
+        
+        <div class="space-y-4">
+            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h3 class="font-medium text-blue-900 dark:text-blue-300 mb-2">如何使用机器人下载</h3>
+                <ol class="text-sm text-blue-800 dark:text-blue-400 space-y-1 list-decimal list-inside">
+                    <li>将机器人添加到您的聊天中</li>
+                    <li>直接发送视频链接给机器人</li>
+                    <li>机器人会自动开始下载</li>
+                    <li>下载完成后自动发送文件</li>
+                </ol>
+            </div>
+            
+            <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <h3 class="font-medium text-yellow-900 dark:text-yellow-300 mb-2">支持的网站</h3>
+                <p class="text-sm text-yellow-800 dark:text-yellow-400">
+                    支持所有yt-dlp兼容的网站，包括YouTube、Bilibili、Twitter等1000+网站
+                </p>
+            </div>
+            
+            <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                <h3 class="font-medium text-green-900 dark:text-green-300 mb-2">命令支持</h3>
+                <div class="text-sm text-green-800 dark:text-green-400 space-y-1">
+                    <p><code>/start</code> - 查看帮助信息</p>
+                    <p><code>/status</code> - 查看系统状态</p>
+                    <p><code>/downloads</code> - 查看下载列表</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function telegramApp() {
+    return {
+        config: {
+            enabled: false,
+            bot_token: '',
+            chat_id: '',
+            api_id: null,
+            api_hash: '',
+            push_mode: 'file',
+            auto_download: true,
+            file_size_limit: 50
+        },
+        connectionStatus: {
+            bot_api: false,
+            pyrogram: false
+        },
+        testing: false,
+        
+        async init() {
+            await this.loadConfig();
+        },
+        
+        async loadConfig() {
+            try {
+                const response = await apiRequest('/api/telegram/config');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.config = { ...this.config, ...data };
+                }
+            } catch (error) {
+                console.error('加载Telegram配置失败:', error);
+            }
+        },
+        
+        async saveConfig() {
+            try {
+                const response = await apiRequest('/api/telegram/config', {
+                    method: 'POST',
+                    body: JSON.stringify(this.config)
+                });
+                
+                if (response.ok) {
+                    showNotification('配置保存成功', 'success');
+                } else {
+                    const data = await response.json();
+                    showNotification(data.error || '保存失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
+            }
+        },
+        
+        async testConnection() {
+            if (!this.config.bot_token || !this.config.chat_id) {
+                showNotification('请先配置Bot Token和Chat ID', 'warning');
+                return;
+            }
+            
+            this.testing = true;
+            
+            try {
+                const response = await apiRequest('/api/telegram/test', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.connectionStatus = {
+                        bot_api: data.bot_api || false,
+                        pyrogram: data.pyrogram || false
+                    };
+                    
+                    if (data.success) {
+                        showNotification('连接测试成功', 'success');
+                    } else {
+                        showNotification(data.error || '连接测试失败', 'error');
+                    }
+                } else {
+                    showNotification('测试失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
+            } finally {
+                this.testing = false;
+                this.$nextTick(() => feather.replace());
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

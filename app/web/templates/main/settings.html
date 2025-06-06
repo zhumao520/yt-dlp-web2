@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+
+{% block title %}系统设置 - YT-DLP Web V2{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6" x-data="settingsApp()">
+    
+    <!-- 页面标题 -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">系统设置</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">配置应用的全局设置</p>
+    </div>
+    
+    <!-- 设置选项卡 -->
+    <div class="mb-6">
+        <div class="border-b border-gray-200 dark:border-gray-700">
+            <nav class="-mb-px flex space-x-8">
+                <button @click="activeTab = 'general'" 
+                        :class="activeTab === 'general' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
+                        class="py-2 px-1 border-b-2 font-medium text-sm">
+                    基础设置
+                </button>
+                <button @click="activeTab = 'download'" 
+                        :class="activeTab === 'download' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
+                        class="py-2 px-1 border-b-2 font-medium text-sm">
+                    下载配置
+                </button>
+                <button @click="activeTab = 'security'" 
+                        :class="activeTab === 'security' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
+                        class="py-2 px-1 border-b-2 font-medium text-sm">
+                    安全设置
+                </button>
+                <button @click="activeTab = 'advanced'" 
+                        :class="activeTab === 'advanced' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
+                        class="py-2 px-1 border-b-2 font-medium text-sm">
+                    高级功能
+                </button>
+            </nav>
+        </div>
+    </div>
+    
+    <!-- 基础设置 -->
+    <div x-show="activeTab === 'general'" class="card p-6">
+        <h2 class="text-lg font-semibold mb-4 flex items-center">
+            <i data-feather="settings" class="w-5 h-5 mr-2"></i>
+            基础设置
+        </h2>
+        
+        <form @submit.prevent="saveGeneralSettings()" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">应用名称</label>
+                    <input type="text" x-model="settings.general.app_name" class="input-field">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">会话超时 (小时)</label>
+                    <input type="number" x-model="settings.general.session_timeout" 
+                           class="input-field" min="1" max="168">
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium mb-2">应用密钥</label>
+                <div class="flex space-x-2">
+                    <input :type="showSecretKey ? 'text' : 'password'" 
+                           x-model="settings.general.secret_key" 
+                           class="input-field flex-1">
+                    <button type="button" @click="showSecretKey = !showSecretKey" 
+                            class="btn-secondary">
+                        <i :data-feather="showSecretKey ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                    </button>
+                    <button type="button" @click="generateSecretKey()" class="btn-secondary">
+                        生成新密钥
+                    </button>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">用于会话加密，修改后所有用户需要重新登录</p>
+            </div>
+            
+            <div class="flex items-center">
+                <input type="checkbox" x-model="settings.general.debug_mode" 
+                       class="mr-2" id="debug_mode">
+                <label for="debug_mode" class="text-sm">启用调试模式</label>
+            </div>
+            
+            <button type="submit" class="btn-primary">
+                <i data-feather="save" class="w-4 h-4 mr-2"></i>
+                保存基础设置
+            </button>
+        </form>
+    </div>
+    
+    <!-- 下载配置 -->
+    <div x-show="activeTab === 'download'" class="card p-6">
+        <h2 class="text-lg font-semibold mb-4 flex items-center">
+            <i data-feather="download" class="w-5 h-5 mr-2"></i>
+            下载配置
+        </h2>
+        
+        <form @submit.prevent="saveDownloadSettings()" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">下载目录</label>
+                    <input type="text" x-model="settings.download.output_dir" class="input-field">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">最大并发下载数</label>
+                    <input type="number" x-model="settings.download.max_concurrent" 
+                           class="input-field" min="1" max="10">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">下载超时 (秒)</label>
+                    <input type="number" x-model="settings.download.timeout" 
+                           class="input-field" min="60" max="3600">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">默认视频质量</label>
+                    <select x-model="settings.download.default_quality" class="input-field">
+                        <option value="best">最高质量</option>
+                        <option value="medium">中等质量 (720p)</option>
+                        <option value="low">低质量</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="space-y-3">
+                <div class="flex items-center">
+                    <input type="checkbox" x-model="settings.download.auto_cleanup" 
+                           class="mr-2" id="auto_cleanup">
+                    <label for="auto_cleanup" class="text-sm">启用自动清理</label>
+                </div>
+                
+                <div x-show="settings.download.auto_cleanup" class="ml-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">文件保留时间 (小时)</label>
+                        <input type="number" x-model="settings.download.file_retention_hours" 
+                               class="input-field" min="1" max="8760">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-2">清理间隔 (小时)</label>
+                        <input type="number" x-model="settings.download.cleanup_interval" 
+                               class="input-field" min="1" max="168">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-2">最大存储空间 (MB)</label>
+                        <input type="number" x-model="settings.download.max_storage_mb" 
+                               class="input-field" min="100">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-2">保留最近文件数</label>
+                        <input type="number" x-model="settings.download.keep_recent_files" 
+                               class="input-field" min="1" max="100">
+                    </div>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn-primary">
+                <i data-feather="save" class="w-4 h-4 mr-2"></i>
+                保存下载配置
+            </button>
+        </form>
+    </div>
+    
+    <!-- 安全设置 -->
+    <div x-show="activeTab === 'security'" class="card p-6">
+        <h2 class="text-lg font-semibold mb-4 flex items-center">
+            <i data-feather="shield" class="w-5 h-5 mr-2"></i>
+            安全设置
+        </h2>
+        
+        <div class="space-y-6">
+            <!-- 修改密码 -->
+            <div>
+                <h3 class="font-medium mb-3">修改管理员密码</h3>
+                <form @submit.prevent="changePassword()" class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">当前密码</label>
+                        <input type="password" x-model="passwordForm.current" class="input-field">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-2">新密码</label>
+                        <input type="password" x-model="passwordForm.new" class="input-field" minlength="6">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-2">确认新密码</label>
+                        <input type="password" x-model="passwordForm.confirm" class="input-field">
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">
+                        <i data-feather="key" class="w-4 h-4 mr-2"></i>
+                        修改密码
+                    </button>
+                </form>
+            </div>
+            
+            <!-- API访问控制 -->
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="font-medium mb-3">API访问控制</h3>
+                <div class="space-y-3">
+                    <div class="flex items-center">
+                        <input type="checkbox" x-model="settings.security.api_enabled" 
+                               class="mr-2" id="api_enabled">
+                        <label for="api_enabled" class="text-sm">启用API访问</label>
+                    </div>
+                    
+                    <div x-show="settings.security.api_enabled">
+                        <label class="block text-sm font-medium mb-2">API密钥</label>
+                        <div class="flex space-x-2">
+                            <input type="text" x-model="settings.security.api_key" 
+                                   class="input-field flex-1" readonly>
+                            <button type="button" @click="generateApiKey()" class="btn-secondary">
+                                重新生成
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 高级功能 -->
+    <div x-show="activeTab === 'advanced'" class="card p-6">
+        <h2 class="text-lg font-semibold mb-4 flex items-center">
+            <i data-feather="zap" class="w-5 h-5 mr-2"></i>
+            高级功能
+        </h2>
+
+        <div class="space-y-6">
+            <!-- yt-dlp管理 -->
+            <div>
+                <h3 class="font-medium mb-3">yt-dlp 管理</h3>
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-medium text-blue-900 dark:text-blue-300">当前版本</p>
+                            <p class="text-sm text-blue-800 dark:text-blue-400" x-text="ytdlpInfo.version || '检测中...'"></p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button @click="checkYtdlpInfo()" class="btn-secondary">
+                                <i data-feather="info" class="w-4 h-4 mr-2"></i>
+                                检查信息
+                            </button>
+                            <button @click="updateYtdlp()"
+                                    :disabled="updating"
+                                    class="btn-primary">
+                                <template x-if="updating">
+                                    <div class="flex items-center">
+                                        <svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        更新中...
+                                    </div>
+                                </template>
+                                <template x-if="!updating">
+                                    <div class="flex items-center">
+                                        <i data-feather="download" class="w-4 h-4 mr-2"></i>
+                                        更新yt-dlp
+                                    </div>
+                                </template>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 扩展功能预留 -->
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="font-medium mb-3">扩展功能 (预留)</h3>
+                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
+                    <p class="text-yellow-800 dark:text-yellow-400 text-sm">
+                        <i data-feather="info" class="w-4 h-4 inline mr-1"></i>
+                        以下功能为未来扩展预留，当前版本暂不可用
+                    </p>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg opacity-50">
+                        <div>
+                            <h3 class="font-medium">AI视频分析</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">自动分析视频内容，生成摘要和标签</p>
+                        </div>
+                        <input type="checkbox" disabled class="opacity-50">
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg opacity-50">
+                        <div>
+                            <h3 class="font-medium">云存储集成</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">自动上传到云存储服务</p>
+                        </div>
+                        <input type="checkbox" disabled class="opacity-50">
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg opacity-50">
+                        <div>
+                            <h3 class="font-medium">多用户支持</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">支持多个用户账户和权限管理</p>
+                        </div>
+                        <input type="checkbox" disabled class="opacity-50">
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg opacity-50">
+                        <div>
+                            <h3 class="font-medium">系统监控</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">系统性能监控和告警</p>
+                        </div>
+                        <input type="checkbox" disabled class="opacity-50">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function settingsApp() {
+    return {
+        activeTab: 'general',
+        showSecretKey: false,
+        updating: false,
+        ytdlpInfo: {
+            version: '',
+            available: false
+        },
+        settings: {
+            general: {
+                app_name: 'YT-DLP Web V2',
+                session_timeout: 24,
+                secret_key: '',
+                debug_mode: false
+            },
+            download: {
+                output_dir: '/app/downloads',
+                max_concurrent: 3,
+                timeout: 300,
+                default_quality: 'medium',
+                auto_cleanup: true,
+                file_retention_hours: 24,
+                cleanup_interval: 1,
+                max_storage_mb: 2048,
+                keep_recent_files: 20
+            },
+            security: {
+                api_enabled: false,
+                api_key: ''
+            }
+        },
+        passwordForm: {
+            current: '',
+            new: '',
+            confirm: ''
+        },
+        
+        async init() {
+            await this.loadSettings();
+            await this.checkYtdlpInfo();
+        },
+        
+        async loadSettings() {
+            try {
+                const response = await apiRequest('/api/settings');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.settings = { ...this.settings, ...data.settings };
+                }
+            } catch (error) {
+                console.error('加载设置失败:', error);
+            }
+        },
+        
+        async saveGeneralSettings() {
+            try {
+                const response = await apiRequest('/api/settings/general', {
+                    method: 'POST',
+                    body: JSON.stringify(this.settings.general)
+                });
+                
+                if (response.ok) {
+                    showNotification('基础设置保存成功', 'success');
+                } else {
+                    showNotification('保存失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
+            }
+        },
+        
+        async saveDownloadSettings() {
+            try {
+                const response = await apiRequest('/api/settings/download', {
+                    method: 'POST',
+                    body: JSON.stringify(this.settings.download)
+                });
+                
+                if (response.ok) {
+                    showNotification('下载配置保存成功', 'success');
+                } else {
+                    showNotification('保存失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
+            }
+        },
+        
+        async changePassword() {
+            if (this.passwordForm.new !== this.passwordForm.confirm) {
+                showNotification('新密码不匹配', 'error');
+                return;
+            }
+            
+            if (this.passwordForm.new.length < 6) {
+                showNotification('密码长度至少6位', 'error');
+                return;
+            }
+            
+            try {
+                const response = await apiRequest('/api/auth/change-password', {
+                    method: 'POST',
+                    body: JSON.stringify(this.passwordForm)
+                });
+                
+                if (response.ok) {
+                    showNotification('密码修改成功', 'success');
+                    this.passwordForm = { current: '', new: '', confirm: '' };
+                } else {
+                    const data = await response.json();
+                    showNotification(data.error || '密码修改失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
+            }
+        },
+        
+        generateSecretKey() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+            let result = '';
+            for (let i = 0; i < 64; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            this.settings.general.secret_key = result;
+            showNotification('新密钥已生成', 'success');
+        },
+        
+        generateApiKey() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < 32; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            this.settings.security.api_key = result;
+            showNotification('新API密钥已生成', 'success');
+        },
+
+        async checkYtdlpInfo() {
+            try {
+                const response = await apiRequest('/api/system/ytdlp/info');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        this.ytdlpInfo = {
+                            version: data.info.version,
+                            available: data.info.available
+                        };
+                    }
+                } else {
+                    this.ytdlpInfo = {
+                        version: '未安装',
+                        available: false
+                    };
+                }
+            } catch (error) {
+                console.error('检查yt-dlp信息失败:', error);
+                this.ytdlpInfo = {
+                    version: '检查失败',
+                    available: false
+                };
+            }
+        },
+
+        async updateYtdlp() {
+            this.updating = true;
+
+            try {
+                const response = await apiRequest('/api/system/ytdlp/update', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showNotification(data.message || 'yt-dlp更新成功', 'success');
+                    await this.checkYtdlpInfo();
+                } else {
+                    const data = await response.json();
+                    showNotification(data.error || 'yt-dlp更新失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
+            } finally {
+                this.updating = false;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}
