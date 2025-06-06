@@ -31,6 +31,12 @@ fi
 echo "🔧 检查和修复常见问题..."
 python3 fix_common_issues.py
 
+# 可选：更新yt-dlp到最新版本
+if [ "${UPDATE_YTDLP:-false}" = "true" ]; then
+    echo "🔄 更新yt-dlp到最新版本..."
+    python3 web_update_ytdlp.py
+fi
+
 # 检查配置文件
 if [ ! -f "config.yml" ]; then
     echo "📋 创建默认配置文件..."
@@ -68,10 +74,25 @@ if [ -z "$DOCKER_CONTAINER" ]; then
 fi
 
 # 安装Python依赖
+echo "📦 安装Python依赖..."
 if [ -f "requirements.txt" ]; then
-    echo "📦 安装Python依赖..."
-    pip install -r requirements.txt
-    echo "✅ 依赖安装完成"
+    echo "🔧 尝试安装标准依赖..."
+    if pip install -r requirements.txt; then
+        echo "✅ 标准依赖安装完成"
+    else
+        echo "⚠️ 标准依赖安装失败，尝试宽松版本..."
+        if [ -f "requirements-flexible.txt" ]; then
+            if pip install -r requirements-flexible.txt; then
+                echo "✅ 宽松版本依赖安装完成"
+            else
+                echo "⚠️ 宽松版本也失败，安装基础依赖..."
+                pip install flask requests pyyaml pyjwt yt-dlp
+            fi
+        else
+            echo "⚠️ 安装基础依赖..."
+            pip install flask requests pyyaml pyjwt yt-dlp
+        fi
+    fi
 else
     echo "⚠️ 未找到requirements.txt，安装基础依赖..."
     pip install flask requests pyyaml pyjwt yt-dlp
@@ -82,33 +103,15 @@ echo "🔍 验证关键依赖..."
 python3 -c "
 import sys
 missing = []
-try:
-    import flask
-    print('✅ Flask: OK')
-except ImportError:
-    missing.append('Flask')
-    print('❌ Flask: 缺失')
+packages = [('flask', 'Flask'), ('yt_dlp', 'yt-dlp'), ('requests', 'requests'), ('yaml', 'PyYAML')]
 
-try:
-    import yt_dlp
-    print('✅ yt-dlp: OK')
-except ImportError:
-    missing.append('yt-dlp')
-    print('❌ yt-dlp: 缺失')
-
-try:
-    import requests
-    print('✅ requests: OK')
-except ImportError:
-    missing.append('requests')
-    print('❌ requests: 缺失')
-
-try:
-    import yaml
-    print('✅ PyYAML: OK')
-except ImportError:
-    missing.append('PyYAML')
-    print('❌ PyYAML: 缺失')
+for module, name in packages:
+    try:
+        __import__(module)
+        print(f'✅ {name}: 已安装')
+    except ImportError:
+        missing.append(name)
+        print(f'❌ {name}: 未安装')
 
 if missing:
     print(f'❌ 缺失关键依赖: {missing}')
