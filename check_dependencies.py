@@ -100,27 +100,19 @@ class DependencyChecker:
     def check_python_packages(self):
         """检查Python包依赖"""
         required_packages = [
-            ('flask', 'Flask', '2.0.0'),
-            ('requests', 'requests', '2.25.0'),
-            ('yaml', 'PyYAML', '5.4.0'),
-            ('jwt', 'PyJWT', '2.0.0'),
-            ('yt_dlp', 'yt-dlp', '2023.1.0'),
+            ('flask', 'Flask'),
+            ('requests', 'requests'),
+            ('yaml', 'PyYAML'),
+            ('jwt', 'PyJWT'),
+            ('yt_dlp', 'yt-dlp'),
         ]
-        
-        for module_name, package_name, min_version in required_packages:
+
+        for module_name, package_name in required_packages:
             try:
-                module = __import__(module_name)
-                
-                # 获取版本信息
-                version = getattr(module, '__version__', None)
-                if not version and hasattr(module, 'version'):
-                    version = getattr(module.version, '__version__', 'unknown')
-                if not version:
-                    version = 'unknown'
-                
-                logger.info(f"✅ {package_name}: {version}")
-                self.success.append(f"{package_name} {version}")
-                
+                __import__(module_name)
+                logger.info(f"✅ {package_name}: 已安装")
+                self.success.append(f"{package_name}")
+
             except ImportError:
                 logger.error(f"❌ {package_name} 未安装")
                 self.issues.append(f"{package_name} 未安装")
@@ -130,16 +122,47 @@ class DependencyChecker:
     
     def check_optional_dependencies(self):
         """检查可选依赖"""
-        optional_packages = [
-            ('pyrogram', 'Pyrogram', 'Telegram大文件支持'),
-            ('tgcrypto', 'TgCrypto', 'Telegram加密优化'),
+        # 检查Telegram相关依赖
+        telegram_installed = False
+        try:
+            import pyrogram
+            # 尝试检测是否是PyrogramMod
+            try:
+                # PyrogramMod通常有更新的版本号
+                version = getattr(pyrogram, '__version__', 'unknown')
+                if version and version > '2.0.106':
+                    logger.info(f"✅ PyrogramMod 已安装 (版本: {version})")
+                    self.success.append("PyrogramMod (推荐)")
+                else:
+                    logger.info(f"✅ Pyrogram 已安装 (版本: {version})")
+                    self.success.append("Pyrogram (可选)")
+            except:
+                logger.info(f"✅ Pyrogram/PyrogramMod 已安装 (Telegram支持)")
+                self.success.append("Pyrogram/PyrogramMod (可选)")
+            telegram_installed = True
+        except ImportError:
+            logger.info(f"ℹ️ Pyrogram/PyrogramMod 未安装 (Telegram大文件支持)")
+
+        # 检查TgCrypto
+        try:
+            import tgcrypto
+            logger.info(f"✅ TgCrypto 已安装 (Telegram加密优化)")
+            self.success.append("TgCrypto (可选)")
+        except ImportError:
+            logger.info(f"ℹ️ TgCrypto 未安装 (Telegram加密优化)")
+
+        # 检查开发工具
+        dev_packages = [
+            ('pytest', 'pytest', '单元测试'),
+            ('black', 'black', '代码格式化'),
+            ('flake8', 'flake8', '代码检查'),
         ]
-        
-        for module_name, package_name, description in optional_packages:
+
+        for module_name, package_name, description in dev_packages:
             try:
                 __import__(module_name)
                 logger.info(f"✅ {package_name} 已安装 ({description})")
-                self.success.append(f"{package_name} (可选)")
+                self.success.append(f"{package_name} (开发工具)")
             except ImportError:
                 logger.info(f"ℹ️ {package_name} 未安装 ({description})")
     

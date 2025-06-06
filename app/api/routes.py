@@ -368,7 +368,8 @@ def api_update_ytdlp():
         from ..scripts.ytdlp_installer import YtdlpInstaller
 
         installer = YtdlpInstaller()
-        success = installer.ensure_ytdlp()
+        # 使用新的update_ytdlp方法，强制更新
+        success = installer.update_ytdlp()
 
         if success:
             # 获取新版本信息

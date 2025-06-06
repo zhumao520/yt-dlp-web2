@@ -24,34 +24,42 @@ class YtdlpInstaller:
         self.ytdlp_dir = self.project_root / 'yt_dlp'
         self.temp_dir = self.project_root / 'temp'
         
-    def ensure_ytdlp(self) -> bool:
+    def ensure_ytdlp(self, force_update=False) -> bool:
         """确保yt-dlp可用"""
         try:
-            # 检查是否已经可用
-            if self._check_ytdlp_available():
-                logger.info("✅ yt-dlp已可用")
-                return True
-            
+            # 如果强制更新，跳过可用性检查
+            if not force_update:
+                # 检查是否已经可用
+                if self._check_ytdlp_available():
+                    logger.info("✅ yt-dlp已可用")
+                    return True
+            else:
+                logger.info("🔄 强制更新yt-dlp...")
+
             # 检测环境并选择安装策略
             from .environment_detector import EnvironmentDetector
             detector = EnvironmentDetector()
             env_info = detector.detect()
-            
+
             strategy = detector.get_install_strategy()
             logger.info(f"🔧 使用安装策略: {strategy}")
-            
+
             if strategy == 'use_prebuilt':
                 return self._use_prebuilt_ytdlp()
             elif strategy == 'github_release':
                 return self._install_from_github()
             elif strategy == 'pip_install':
-                return self._install_from_pip()
+                return self._install_from_pip(force_update)
             else:
-                return self._auto_install()
-                
+                return self._auto_install(force_update)
+
         except Exception as e:
             logger.error(f"❌ yt-dlp安装失败: {e}")
             return False
+
+    def update_ytdlp(self) -> bool:
+        """更新yt-dlp到最新版本"""
+        return self.ensure_ytdlp(force_update=True)
     
     def _check_ytdlp_available(self) -> bool:
         """检查yt-dlp是否可用"""
@@ -131,42 +139,46 @@ class YtdlpInstaller:
             logger.error(f"❌ 从GitHub安装失败: {e}")
             return False
     
-    def _install_from_pip(self) -> bool:
+    def _install_from_pip(self, force_update=False) -> bool:
         """使用pip安装"""
         try:
-            logger.info("📦 使用pip安装yt-dlp...")
-            
+            if force_update:
+                logger.info("📦 使用pip强制更新yt-dlp...")
+                cmd = [sys.executable, '-m', 'pip', 'install',
+                       '--no-cache-dir', '--upgrade', '--force-reinstall', 'yt-dlp']
+            else:
+                logger.info("📦 使用pip安装yt-dlp...")
+                cmd = [sys.executable, '-m', 'pip', 'install',
+                       '--no-cache-dir', '--upgrade', 'yt-dlp']
+
             # 尝试pip安装
-            result = subprocess.run([
-                sys.executable, '-m', 'pip', 'install', 
-                '--no-cache-dir', '--upgrade', 'yt-dlp'
-            ], capture_output=True, text=True, timeout=300)
-            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
             if result.returncode == 0:
                 logger.info("✅ pip安装成功")
                 return self._check_ytdlp_available()
             else:
                 logger.error(f"❌ pip安装失败: {result.stderr}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"❌ pip安装异常: {e}")
             return False
     
-    def _auto_install(self) -> bool:
+    def _auto_install(self, force_update=False) -> bool:
         """自动选择最佳安装方式"""
         try:
             # 优先尝试pip安装
-            if self._install_from_pip():
+            if self._install_from_pip(force_update):
                 return True
-            
+
             # pip失败则尝试GitHub
             if self._install_from_github():
                 return True
-            
+
             logger.error("❌ 所有安装方式都失败了")
             return False
-            
+
         except Exception as e:
             logger.error(f"❌ 自动安装失败: {e}")
             return False
