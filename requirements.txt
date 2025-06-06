@@ -14,7 +14,7 @@ PyYAML>=6.0.2
 
 # Telegram集成 (可选)
 pyrogrammod>=2.2.1
-TgCrypto>=1.2.5
+TgCrypto2>=1.2.5
 
 # yt-dlp (核心功能)
 yt-dlp>=2025.5.22
