@@ -14,30 +14,34 @@ def create_app(config_override=None):
     """创建Flask应用实例"""
     try:
         logger.info("🔧 创建Flask应用...")
-        
+
         # 创建Flask实例
         app = Flask(__name__)
-        
+
         # 配置应用
         _configure_app(app, config_override)
-        
+
         # 配置CORS
         CORS(app, supports_credentials=True)
-        
+
         # 初始化核心组件
         _initialize_core_components(app)
-        
+
         # 注册蓝图
         _register_blueprints(app)
-        
+
         # 注册错误处理器
         _register_error_handlers(app)
-        
+
         # 发送应用启动事件
         with app.app_context():
             from .events import emit, Events
-            emit(Events.APP_STARTED, {'app_name': app.config.get('APP_NAME', 'YT-DLP Web V2')})
-        
+
+            emit(
+                Events.APP_STARTED,
+                {"app_name": app.config.get("APP_NAME", "YT-DLP Web V2")},
+            )
+
         logger.info("✅ Flask应用创建完成")
         return app
         

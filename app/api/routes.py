@@ -360,7 +360,7 @@ def api_system_status():
         return jsonify({'error': '获取状态失败'}), 500
 
 
-@api_bp.route('/system/ytdlp/update', methods=['POST'])
+@api_bp.route("/system/ytdlp/update", methods=["POST"])
 @auth_required
 def api_update_ytdlp():
     """更新yt-dlp"""
@@ -374,20 +374,22 @@ def api_update_ytdlp():
         if success:
             # 获取新版本信息
             info = installer.get_ytdlp_info()
-            return jsonify({
-                'success': True,
-                'message': 'yt-dlp更新成功',
-                'version': info.get('version', 'Unknown') if info else 'Unknown'
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "yt-dlp更新成功",
+                    "version": info.get("version", "Unknown") if info else "Unknown",
+                }
+            )
         else:
-            return jsonify({'error': 'yt-dlp更新失败'}), 500
+            return jsonify({"error": "yt-dlp更新失败"}), 500
 
     except Exception as e:
         logger.error(f"❌ 更新yt-dlp失败: {e}")
-        return jsonify({'error': '更新失败'}), 500
+        return jsonify({"error": "更新失败"}), 500
 
 
-@api_bp.route('/system/ytdlp/info')
+@api_bp.route("/system/ytdlp/info")
 @auth_required
 def api_ytdlp_info():
     """获取yt-dlp详细信息"""
@@ -398,19 +400,16 @@ def api_ytdlp_info():
         info = installer.get_ytdlp_info()
 
         if info:
-            return jsonify({
-                'success': True,
-                'info': info
-            })
+            return jsonify({"success": True, "info": info})
         else:
-            return jsonify({
-                'success': False,
-                'error': 'yt-dlp未安装或不可用'
-            }), 404
+            return (
+                jsonify({"success": False, "error": "yt-dlp未安装或不可用"}),
+                404,
+            )
 
     except Exception as e:
         logger.error(f"❌ 获取yt-dlp信息失败: {e}")
-        return jsonify({'error': '获取信息失败'}), 500
+        return jsonify({"error": "获取信息失败"}), 500
 
 
 # ==================== 辅助函数 ====================
@@ -421,9 +420,9 @@ def _extract_video_info(url: str):
         import yt_dlp
         
         ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": False,
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

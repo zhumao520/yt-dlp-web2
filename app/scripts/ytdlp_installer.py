@@ -144,15 +144,32 @@ class YtdlpInstaller:
         try:
             if force_update:
                 logger.info("📦 使用pip强制更新yt-dlp...")
-                cmd = [sys.executable, '-m', 'pip', 'install',
-                       '--no-cache-dir', '--upgrade', '--force-reinstall', 'yt-dlp']
+                cmd = [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--no-cache-dir",
+                    "--upgrade",
+                    "--force-reinstall",
+                    "yt-dlp",
+                ]
             else:
                 logger.info("📦 使用pip安装yt-dlp...")
-                cmd = [sys.executable, '-m', 'pip', 'install',
-                       '--no-cache-dir', '--upgrade', 'yt-dlp']
+                cmd = [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--no-cache-dir",
+                    "--upgrade",
+                    "yt-dlp",
+                ]
 
             # 尝试pip安装
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=300
+            )
 
             if result.returncode == 0:
                 logger.info("✅ pip安装成功")
