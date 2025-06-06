@@ -15,8 +15,18 @@ def create_app(config_override=None):
     try:
         logger.info("🔧 创建Flask应用...")
 
-        # 创建Flask实例
-        app = Flask(__name__)
+        # 创建Flask实例，指定模板目录
+        import os
+        from pathlib import Path
+
+        # 获取app目录的绝对路径
+        app_dir = Path(__file__).parent.parent
+        template_dir = app_dir / "web" / "templates"
+
+        app = Flask(
+            __name__,
+            template_folder=str(template_dir)
+        )
 
         # 配置应用
         _configure_app(app, config_override)
@@ -55,22 +65,21 @@ def _configure_app(app: Flask, config_override=None):
     from .config import get_config
     
     # 基础配置
-    app.config.update({
-        'SECRET_KEY': get_config('app.secret_key'),
-        'DEBUG': get_config('app.debug', False),
-        'APP_NAME': get_config('app.name', 'YT-DLP Web V2'),
-        'APP_VERSION': get_config('app.version', '2.0.0'),
-        
-        # 文件上传配置
-        'MAX_CONTENT_LENGTH': 16 * 1024 * 1024 * 1024,  # 16GB
-        
-        # JSON配置
-        'JSON_AS_ASCII': False,
-        'JSON_SORT_KEYS': False,
-        
-        # 会话配置
-        'PERMANENT_SESSION_LIFETIME': get_config('auth.session_timeout', 86400),
-    })
+    app.config.update(
+        {
+            "SECRET_KEY": get_config("app.secret_key"),
+            "DEBUG": get_config("app.debug", False),
+            "APP_NAME": get_config("app.name", "YT-DLP Web V2"),
+            "APP_VERSION": get_config("app.version", "2.0.0"),
+            # 文件上传配置
+            "MAX_CONTENT_LENGTH": 16 * 1024 * 1024 * 1024,  # 16GB
+            # JSON配置
+            "JSON_AS_ASCII": False,
+            "JSON_SORT_KEYS": False,
+            # 会话配置
+            "PERMANENT_SESSION_LIFETIME": get_config("auth.session_timeout", 86400),
+        }
+    )
     
     # 应用自定义配置覆盖
     if config_override:
@@ -112,27 +121,33 @@ def _register_blueprints(app: Flask):
         
         # API蓝图
         from ..api.routes import api_bp
-        app.register_blueprint(api_bp, url_prefix='/api')
-        
+
+        app.register_blueprint(api_bp, url_prefix="/api")
+
         # 认证蓝图
         from ..modules.auth.routes import auth_bp
-        app.register_blueprint(auth_bp, url_prefix='/auth')
-        
+
+        app.register_blueprint(auth_bp, url_prefix="/auth")
+
         # 下载模块蓝图
         from ..modules.downloader.routes import downloader_bp
-        app.register_blueprint(downloader_bp, url_prefix='/download')
-        
+
+        app.register_blueprint(downloader_bp, url_prefix="/download")
+
         # Telegram模块蓝图
         from ..modules.telegram.routes import telegram_bp
-        app.register_blueprint(telegram_bp, url_prefix='/telegram')
+
+        app.register_blueprint(telegram_bp, url_prefix="/telegram")
 
         # Cookies管理蓝图
         from ..modules.cookies.routes import cookies_bp
-        app.register_blueprint(cookies_bp, url_prefix='/cookies')
+
+        app.register_blueprint(cookies_bp, url_prefix="/cookies")
 
         # 文件管理蓝图
         from ..modules.files.routes import files_bp
-        app.register_blueprint(files_bp, url_prefix='/files')
+
+        app.register_blueprint(files_bp, url_prefix="/files")
         
         logger.info("✅ 蓝图注册完成")
         
@@ -147,31 +162,35 @@ def _register_error_handlers(app: Flask):
     @app.errorhandler(404)
     def not_found_error(error):
         from flask import request, jsonify, render_template
+
         if request.is_json:
-            return jsonify({'error': '页面未找到'}), 404
-        return render_template('errors/404.html'), 404
-    
+            return jsonify({"error": "页面未找到"}), 404
+        return render_template("errors/404.html"), 404
+
     @app.errorhandler(500)
     def internal_error(error):
         from flask import request, jsonify, render_template
+
         logger.error(f"内部服务器错误: {error}")
         if request.is_json:
-            return jsonify({'error': '内部服务器错误'}), 500
-        return render_template('errors/500.html'), 500
-    
+            return jsonify({"error": "内部服务器错误"}), 500
+        return render_template("errors/500.html"), 500
+
     @app.errorhandler(401)
     def unauthorized_error(error):
         from flask import request, jsonify, render_template
+
         if request.is_json:
-            return jsonify({'error': '未授权访问'}), 401
-        return render_template('errors/401.html'), 401
-    
+            return jsonify({"error": "未授权访问"}), 401
+        return render_template("errors/401.html"), 401
+
     @app.errorhandler(403)
     def forbidden_error(error):
         from flask import request, jsonify, render_template
+
         if request.is_json:
-            return jsonify({'error': '禁止访问'}), 403
-        return render_template('errors/403.html'), 403
+            return jsonify({"error": "禁止访问"}), 403
+        return render_template("errors/403.html"), 403
     
     logger.info("✅ 错误处理器注册完成")
 

@@ -19,18 +19,18 @@ def app():
     
     # 测试配置
     test_config = {
-        'TESTING': True,
-        'SECRET_KEY': 'test-secret-key',
-        'DATABASE_URL': f'sqlite:///{temp_dir}/test.db',
-        'DOWNLOAD_DIR': f'{temp_dir}/downloads',
-        'WTF_CSRF_ENABLED': False
+        "TESTING": True,
+        "SECRET_KEY": "test-secret-key",
+        "DATABASE_URL": f"sqlite:///{temp_dir}/test.db",
+        "DOWNLOAD_DIR": f"{temp_dir}/downloads",
+        "WTF_CSRF_ENABLED": False,
     }
     
     app = create_app(test_config)
     
     with app.app_context():
         # 创建必要目录
-        os.makedirs(test_config['DOWNLOAD_DIR'], exist_ok=True)
+        os.makedirs(test_config["DOWNLOAD_DIR"], exist_ok=True)
         
         # 初始化数据库
         from app.core.database import get_database
@@ -58,23 +58,20 @@ def runner(app):
 @pytest.fixture
 def auth_headers():
     """认证头部"""
-    return {
-        'Authorization': 'Bearer test-token',
-        'Content-Type': 'application/json'
-    }
+    return {"Authorization": "Bearer test-token", "Content-Type": "application/json"}
 
 
 @pytest.fixture
 def sample_video_url():
     """示例视频URL"""
-    return 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    return "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 
 @pytest.fixture
 def sample_file_data():
     """示例文件数据"""
     return {
-        'name': 'test_video.mp4',
-        'size': 1024 * 1024,  # 1MB
-        'modified': 1640995200  # 2022-01-01
+        "name": "test_video.mp4",
+        "size": 1024 * 1024,  # 1MB
+        "modified": 1640995200,  # 2022-01-01
     }

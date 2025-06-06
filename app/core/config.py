@@ -37,7 +37,7 @@ class Config:
             # 加载配置文件
             config_file = self._find_config_file()
             if config_file and config_file.exists():
-                with open(config_file, 'r', encoding='utf-8') as f:
+                with open(config_file, "r", encoding="utf-8") as f:
                     file_config = yaml.safe_load(f) or {}
                 self._merge_config(file_config)
                 logger.info(f"✅ 配置文件加载成功: {config_file}")
@@ -54,73 +54,70 @@ class Config:
     def _get_default_config(self) -> Dict[str, Any]:
         """获取默认配置"""
         return {
-            'app': {
-                'name': 'YT-DLP Web V2',
-                'version': '2.0.0',
-                'host': '0.0.0.0',
-                'port': 8080,
-                'debug': False,
-                'secret_key': 'change-this-secret-key-in-production'
+            "app": {
+                "name": "YT-DLP Web V2",
+                "version": "2.0.0",
+                "host": "0.0.0.0",
+                "port": 8080,
+                "debug": False,
+                "secret_key": "change-this-secret-key-in-production",
             },
-            'database': {
-                'url': 'sqlite:///app.db',
-                'echo': False
+            "database": {"url": "sqlite:///app.db", "echo": False},
+            "auth": {
+                "session_timeout": 86400,  # 24小时
+                "default_username": "admin",
+                "default_password": "admin123",
             },
-            'auth': {
-                'session_timeout': 86400,  # 24小时
-                'default_username': 'admin',
-                'default_password': 'admin123'
+            "downloader": {
+                "output_dir": "/app/downloads",
+                "temp_dir": "/app/temp",
+                "max_concurrent": 3,
+                "timeout": 300,
+                "auto_cleanup": True,
+                "cleanup_interval": 3600,  # 1小时
+                "max_file_age": 86400,  # 24小时
             },
-            'downloader': {
-                'output_dir': '/app/downloads',
-                'temp_dir': '/app/temp',
-                'max_concurrent': 3,
-                'timeout': 300,
-                'auto_cleanup': True,
-                'cleanup_interval': 3600,  # 1小时
-                'max_file_age': 86400  # 24小时
+            "telegram": {
+                "enabled": False,
+                "bot_token": "",
+                "chat_id": "",
+                "api_id": None,
+                "api_hash": "",
+                "push_mode": "file",  # file, notification, both
+                "file_size_limit": 50,  # MB
             },
-            'telegram': {
-                'enabled': False,
-                'bot_token': '',
-                'chat_id': '',
-                'api_id': None,
-                'api_hash': '',
-                'push_mode': 'file',  # file, notification, both
-                'file_size_limit': 50  # MB
+            "ytdlp": {
+                "auto_update": True,
+                "source": "github",  # github, pypi, local
+                "version": "latest",
+                "extract_flat": False,
+                "format": "best[height<=720]",
             },
-            'ytdlp': {
-                'auto_update': True,
-                'source': 'github',  # github, pypi, local
-                'version': 'latest',
-                'extract_flat': False,
-                'format': 'best[height<=720]'
+            "logging": {
+                "level": "INFO",
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                "file": "/app/logs/app.log",
+                "max_size": 10485760,  # 10MB
+                "backup_count": 5,
             },
-            'logging': {
-                'level': 'INFO',
-                'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                'file': '/app/logs/app.log',
-                'max_size': 10485760,  # 10MB
-                'backup_count': 5
+            "features": {
+                "ai_analysis": False,  # 预留AI分析功能
+                "cloud_storage": False,  # 预留云存储功能
+                "multi_user": False,  # 预留多用户功能
+                "monitoring": False,  # 预留监控功能
+                "plugins": False,  # 预留插件系统
             },
-            'features': {
-                'ai_analysis': False,  # 预留AI分析功能
-                'cloud_storage': False,  # 预留云存储功能
-                'multi_user': False,  # 预留多用户功能
-                'monitoring': False,  # 预留监控功能
-                'plugins': False  # 预留插件系统
-            }
         }
     
     def _find_config_file(self) -> Optional[Path]:
         """查找配置文件"""
         possible_paths = [
-            Path('config.yml'),
-            Path('config.yaml'),
-            Path('app/config.yml'),
-            Path('app/config.yaml'),
-            Path('/app/config.yml'),
-            Path('/app/config.yaml')
+            Path("config.yml"),
+            Path("config.yaml"),
+            Path("app/config.yml"),
+            Path("app/config.yaml"),
+            Path("/app/config.yml"),
+            Path("/app/config.yaml"),
         ]
         
         for path in possible_paths:
@@ -143,29 +140,29 @@ class Config:
     def _load_env_config(self):
         """从环境变量加载配置"""
         env_mappings = {
-            'APP_HOST': ('app', 'host'),
-            'APP_PORT': ('app', 'port'),
-            'APP_DEBUG': ('app', 'debug'),
-            'SECRET_KEY': ('app', 'secret_key'),
-            'DATABASE_URL': ('database', 'url'),
-            'DOWNLOAD_DIR': ('downloader', 'output_dir'),
-            'TELEGRAM_BOT_TOKEN': ('telegram', 'bot_token'),
-            'TELEGRAM_CHAT_ID': ('telegram', 'chat_id'),
-            'TELEGRAM_API_ID': ('telegram', 'api_id'),
-            'TELEGRAM_API_HASH': ('telegram', 'api_hash'),
+            "APP_HOST": ("app", "host"),
+            "APP_PORT": ("app", "port"),
+            "APP_DEBUG": ("app", "debug"),
+            "SECRET_KEY": ("app", "secret_key"),
+            "DATABASE_URL": ("database", "url"),
+            "DOWNLOAD_DIR": ("downloader", "output_dir"),
+            "TELEGRAM_BOT_TOKEN": ("telegram", "bot_token"),
+            "TELEGRAM_CHAT_ID": ("telegram", "chat_id"),
+            "TELEGRAM_API_ID": ("telegram", "api_id"),
+            "TELEGRAM_API_HASH": ("telegram", "api_hash"),
         }
         
         for env_key, (section, key) in env_mappings.items():
             value = os.environ.get(env_key)
             if value is not None:
                 # 类型转换
-                if key in ['port', 'session_timeout', 'max_concurrent', 'api_id']:
+                if key in ["port", "session_timeout", "max_concurrent", "api_id"]:
                     try:
                         value = int(value)
                     except ValueError:
                         continue
-                elif key in ['debug', 'enabled', 'auto_cleanup']:
-                    value = value.lower() in ('true', '1', 'yes', 'on')
+                elif key in ["debug", "enabled", "auto_cleanup"]:
+                    value = value.lower() in ("true", "1", "yes", "on")
                 
                 if section not in self._config:
                     self._config[section] = {}
@@ -173,7 +170,7 @@ class Config:
     
     def get(self, key: str, default: Any = None) -> Any:
         """获取配置值（支持点号分隔的路径）"""
-        keys = key.split('.')
+        keys = key.split(".")
         value = self._config
         
         for k in keys:
@@ -186,7 +183,7 @@ class Config:
     
     def set(self, key: str, value: Any):
         """设置配置值"""
-        keys = key.split('.')
+        keys = key.split(".")
         config = self._config
         
         for k in keys[:-1]:
@@ -199,10 +196,10 @@ class Config:
     def get_section(self, section: str) -> Dict[str, Any]:
         """获取配置段"""
         return self._config.get(section, {})
-    
+
     def is_enabled(self, feature: str) -> bool:
         """检查功能是否启用"""
-        return self.get(f'features.{feature}', False)
+        return self.get(f"features.{feature}", False)
     
     def to_dict(self) -> Dict[str, Any]:
         """返回完整配置字典"""
