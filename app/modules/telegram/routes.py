@@ -210,14 +210,41 @@ def _handle_download_request(url, config):
         }
         
     except Exception as e:
-        logger.error(f"处理下载请求失败: {e}")
+        error_msg = str(e)
+        logger.error(f"处理下载请求失败: {error_msg}")
+
         # 发送错误消息
         from .notifier import get_telegram_notifier
         notifier = get_telegram_notifier()
-        error_text = f"❌ **下载失败**\n\n🔗 链接: {url}\n⚠️ 错误: {str(e)}"
+
+        # 根据错误类型提供不同的建议
+        if 'cookies' in error_msg.lower() or 'bot' in error_msg.lower():
+            error_text = f"""❌ **下载失败 - 需要身份验证**
+
+🔗 **链接**: {url}
+⚠️ **错误**: {error_msg}
+
+💡 **解决方案**:
+1. 访问 Cookies 管理页面
+2. 上传对应网站的 Cookies
+3. 重新发送链接下载
+
+📖 **获取Cookies教程**:
+使用浏览器扩展或开发者工具导出cookies"""
+        else:
+            error_text = f"""❌ **下载失败**
+
+🔗 **链接**: {url}
+⚠️ **错误**: {error_msg}
+
+💡 **建议**:
+• 检查链接是否有效
+• 稍后重试
+• 联系管理员"""
+
         notifier.send_message(error_text)
-        
-        return {'action': 'download_error', 'error': str(e)}
+
+        return {'action': 'download_error', 'error': error_msg}
 
 
 def _send_help_message(config):

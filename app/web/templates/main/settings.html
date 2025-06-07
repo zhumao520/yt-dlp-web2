@@ -25,12 +25,17 @@
                         class="py-2 px-1 border-b-2 font-medium text-sm">
                     下载配置
                 </button>
-                <button @click="activeTab = 'security'" 
+                <button @click="activeTab = 'security'"
                         :class="activeTab === 'security' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
                         class="py-2 px-1 border-b-2 font-medium text-sm">
                     安全设置
                 </button>
-                <button @click="activeTab = 'advanced'" 
+                <button @click="activeTab = 'shortcuts'"
+                        :class="activeTab === 'shortcuts' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
+                        class="py-2 px-1 border-b-2 font-medium text-sm">
+                    iOS快捷指令
+                </button>
+                <button @click="activeTab = 'advanced'"
                         :class="activeTab === 'advanced' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
                         class="py-2 px-1 border-b-2 font-medium text-sm">
                     高级功能
@@ -213,19 +218,206 @@
                     
                     <div x-show="settings.security.api_enabled">
                         <label class="block text-sm font-medium mb-2">API密钥</label>
-                        <div class="flex space-x-2">
-                            <input type="text" x-model="settings.security.api_key" 
+                        <div class="flex space-x-2 mb-3">
+                            <input type="text" x-model="settings.security.api_key"
                                    class="input-field flex-1" readonly>
                             <button type="button" @click="generateApiKey()" class="btn-secondary">
                                 重新生成
                             </button>
                         </div>
+                        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-3">
+                            <p class="text-sm text-blue-800 dark:text-blue-400">
+                                <i data-feather="info" class="w-4 h-4 inline mr-1"></i>
+                                此API密钥可用于iOS快捷指令等第三方应用访问下载服务
+                            </p>
+                        </div>
+                        <button type="button" @click="saveApiKey()" class="btn-primary">
+                            保存API设置
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
+
+    <!-- iOS快捷指令 -->
+    <div x-show="activeTab === 'shortcuts'" class="card p-6">
+        <h2 class="text-lg font-semibold mb-4 flex items-center">
+            <i data-feather="smartphone" class="w-5 h-5 mr-2"></i>
+            iOS快捷指令集成
+        </h2>
+
+        <div class="space-y-6">
+            <!-- 服务状态 -->
+            <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i data-feather="check-circle" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-green-800 dark:text-green-300">
+                            iOS快捷指令API已就绪
+                        </h3>
+                        <p class="text-sm text-green-700 dark:text-green-400 mt-1">
+                            您可以使用以下信息配置iOS快捷指令来下载视频
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API信息 -->
+            <div>
+                <h3 class="font-medium mb-3">API配置信息</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">服务器地址</label>
+                        <div class="flex space-x-2">
+                            <input type="text" :value="getServerUrl()" class="input-field flex-1" readonly>
+                            <button type="button" @click="copyToClipboard(getServerUrl())" class="btn-secondary">
+                                <i data-feather="copy" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2">下载API端点</label>
+                        <div class="flex space-x-2">
+                            <input type="text" :value="getServerUrl() + '/api/shortcuts/download'" class="input-field flex-1" readonly>
+                            <button type="button" @click="copyToClipboard(getServerUrl() + '/api/shortcuts/download')" class="btn-secondary">
+                                <i data-feather="copy" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div x-show="settings.security.api_enabled && settings.security.api_key">
+                        <label class="block text-sm font-medium mb-2">API密钥</label>
+                        <div class="flex space-x-2">
+                            <input type="text" :value="settings.security.api_key" class="input-field flex-1" readonly>
+                            <button type="button" @click="copyToClipboard(settings.security.api_key)" class="btn-secondary">
+                                <i data-feather="copy" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">在快捷指令中使用此API密钥进行认证</p>
+                    </div>
+
+                    <div x-show="!settings.security.api_enabled || !settings.security.api_key" class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                        <p class="text-sm text-yellow-800 dark:text-yellow-400">
+                            <i data-feather="alert-triangle" class="w-4 h-4 inline mr-1"></i>
+                            请先在"安全设置"中启用API访问并生成API密钥
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 快捷指令模板 -->
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="font-medium mb-3">快捷指令配置模板</h3>
+
+                <div class="space-y-4">
+                    <!-- 基础下载模板 -->
+                    <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                        <h4 class="font-medium mb-2 flex items-center">
+                            <i data-feather="download" class="w-4 h-4 mr-2"></i>
+                            基础下载快捷指令
+                        </h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                            从剪贴板获取URL并下载视频到文件应用
+                        </p>
+
+                        <div class="bg-gray-50 dark:bg-gray-800 rounded p-3 text-sm font-mono">
+                            <div class="space-y-1">
+                                <div>1. 获取剪贴板</div>
+                                <div>2. 获取URL内容 (POST)</div>
+                                <div class="ml-4">URL: <span class="text-blue-600" x-text="getServerUrl() + '/api/shortcuts/download'"></span></div>
+                                <div class="ml-4">JSON: {"url": "[剪贴板]", "api_key": "your_key"}</div>
+                                <div>3. 等待下载完成</div>
+                                <div>4. 保存文件到iCloud Drive</div>
+                            </div>
+                        </div>
+
+                        <button type="button" @click="downloadShortcutTemplate('basic')" class="btn-primary mt-3">
+                            <i data-feather="download" class="w-4 h-4 mr-2"></i>
+                            下载配置文件
+                        </button>
+                    </div>
+
+                    <!-- 高级下载模板 -->
+                    <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                        <h4 class="font-medium mb-2 flex items-center">
+                            <i data-feather="settings" class="w-4 h-4 mr-2"></i>
+                            高级下载快捷指令
+                        </h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                            支持质量选择、进度显示和错误处理
+                        </p>
+
+                        <div class="bg-gray-50 dark:bg-gray-800 rounded p-3 text-sm font-mono">
+                            <div class="space-y-1">
+                                <div>1. 获取剪贴板</div>
+                                <div>2. 选择视频质量 (最高/中等/低)</div>
+                                <div>3. 选择下载类型 (视频/音频)</div>
+                                <div>4. 发送下载请求</div>
+                                <div>5. 显示进度通知</div>
+                                <div>6. 下载完成后保存文件</div>
+                            </div>
+                        </div>
+
+                        <button type="button" @click="downloadShortcutTemplate('advanced')" class="btn-primary mt-3">
+                            <i data-feather="download" class="w-4 h-4 mr-2"></i>
+                            下载配置文件
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 使用说明 -->
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="font-medium mb-3">使用说明</h3>
+
+                <div class="space-y-3 text-sm">
+                    <div class="flex items-start">
+                        <span class="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xs font-medium mr-3 mt-0.5">1</span>
+                        <div>
+                            <p class="font-medium">配置API访问</p>
+                            <p class="text-gray-600 dark:text-gray-400">在"安全设置"中启用API访问并生成API密钥</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start">
+                        <span class="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xs font-medium mr-3 mt-0.5">2</span>
+                        <div>
+                            <p class="font-medium">创建快捷指令</p>
+                            <p class="text-gray-600 dark:text-gray-400">在iOS"快捷指令"应用中创建新的快捷指令</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start">
+                        <span class="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xs font-medium mr-3 mt-0.5">3</span>
+                        <div>
+                            <p class="font-medium">配置API调用</p>
+                            <p class="text-gray-600 dark:text-gray-400">使用上面的API端点和密钥配置HTTP请求</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start">
+                        <span class="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xs font-medium mr-3 mt-0.5">4</span>
+                        <div>
+                            <p class="font-medium">测试使用</p>
+                            <p class="text-gray-600 dark:text-gray-400">复制视频链接到剪贴板，运行快捷指令测试</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p class="text-sm text-blue-800 dark:text-blue-400">
+                        <i data-feather="book-open" class="w-4 h-4 inline mr-1"></i>
+                        详细配置教程请参考项目文档中的"iOS快捷指令集成指南"
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 高级功能 -->
     <div x-show="activeTab === 'advanced'" class="card p-6">
         <h2 class="text-lg font-semibold mb-4 flex items-center">
@@ -243,8 +435,10 @@
                             <p class="font-medium text-blue-900 dark:text-blue-300">当前版本</p>
                             <p class="text-sm text-blue-800 dark:text-blue-400" x-text="ytdlpInfo.version || '检测中...'"></p>
                         </div>
-                        <div class="flex space-x-2">
-                            <button @click="checkYtdlpInfo()" class="btn-secondary">
+                        <div class="flex flex-wrap gap-2">
+                            <button @click="checkYtdlpInfo()"
+                                    :disabled="updating"
+                                    class="btn-secondary">
                                 <i data-feather="info" class="w-4 h-4 mr-2"></i>
                                 检查信息
                             </button>
@@ -257,13 +451,32 @@
                                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
-                                        更新中...
+                                        处理中...
                                     </div>
                                 </template>
                                 <template x-if="!updating">
                                     <div class="flex items-center">
                                         <i data-feather="download" class="w-4 h-4 mr-2"></i>
                                         更新yt-dlp
+                                    </div>
+                                </template>
+                            </button>
+                            <button @click="installYtdlp()"
+                                    :disabled="updating"
+                                    class="btn-warning">
+                                <template x-if="updating">
+                                    <div class="flex items-center">
+                                        <svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        安装中...
+                                    </div>
+                                </template>
+                                <template x-if="!updating">
+                                    <div class="flex items-center">
+                                        <i data-feather="package" class="w-4 h-4 mr-2"></i>
+                                        重新安装
                                     </div>
                                 </template>
                             </button>
@@ -369,10 +582,32 @@ function settingsApp() {
         
         async loadSettings() {
             try {
-                const response = await apiRequest('/api/settings');
-                if (response.ok) {
-                    const data = await response.json();
-                    this.settings = { ...this.settings, ...data.settings };
+                // 加载基础设置
+                const generalResponse = await apiRequest('/api/settings/general');
+                if (generalResponse.ok) {
+                    const generalData = await generalResponse.json();
+                    if (generalData.success) {
+                        this.settings.general = { ...this.settings.general, ...generalData.settings };
+                    }
+                }
+
+                // 加载下载设置
+                const downloadResponse = await apiRequest('/api/settings/download');
+                if (downloadResponse.ok) {
+                    const downloadData = await downloadResponse.json();
+                    if (downloadData.success) {
+                        this.settings.download = { ...this.settings.download, ...downloadData.settings };
+                    }
+                }
+
+                // 加载API密钥设置
+                const apiKeyResponse = await apiRequest('/api/settings/api-key');
+                if (apiKeyResponse.ok) {
+                    const apiKeyData = await apiKeyResponse.json();
+                    if (apiKeyData.success) {
+                        this.settings.security.api_key = apiKeyData.api_key;
+                        this.settings.security.api_enabled = apiKeyData.has_key;
+                    }
                 }
             } catch (error) {
                 console.error('加载设置失败:', error);
@@ -452,14 +687,47 @@ function settingsApp() {
             showNotification('新密钥已生成', 'success');
         },
         
-        generateApiKey() {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-            let result = '';
-            for (let i = 0; i < 32; i++) {
-                result += chars.charAt(Math.floor(Math.random() * chars.length));
+        async generateApiKey() {
+            try {
+                const response = await apiRequest('/api/settings/api-key/generate', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        this.settings.security.api_key = data.api_key;
+                        this.settings.security.api_enabled = true;
+                        showNotification(data.message || '新API密钥已生成', 'success');
+                    }
+                } else {
+                    const data = await response.json();
+                    showNotification(data.error || 'API密钥生成失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
             }
-            this.settings.security.api_key = result;
-            showNotification('新API密钥已生成', 'success');
+        },
+
+        async saveApiKey() {
+            try {
+                const response = await apiRequest('/api/settings/api-key', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        api_key: this.settings.security.api_enabled ? this.settings.security.api_key : ''
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showNotification(data.message || 'API密钥保存成功', 'success');
+                } else {
+                    const data = await response.json();
+                    showNotification(data.error || 'API密钥保存失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
+            }
         },
 
         async checkYtdlpInfo() {
@@ -492,6 +760,8 @@ function settingsApp() {
             this.updating = true;
 
             try {
+                showNotification('正在更新yt-dlp，请稍候...', 'info');
+
                 const response = await apiRequest('/api/system/ytdlp/update', {
                     method: 'POST'
                 });
@@ -509,6 +779,134 @@ function settingsApp() {
             } finally {
                 this.updating = false;
             }
+        },
+
+        async installYtdlp() {
+            if (!confirm('确定要重新安装yt-dlp吗？这将下载最新版本并覆盖现有安装。')) {
+                return;
+            }
+
+            this.updating = true;
+
+            try {
+                showNotification('正在重新安装yt-dlp，请稍候...', 'info');
+
+                const response = await apiRequest('/api/system/ytdlp/install', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showNotification(data.message || 'yt-dlp安装成功', 'success');
+                    await this.checkYtdlpInfo();
+                } else {
+                    const data = await response.json();
+                    showNotification(data.error || 'yt-dlp安装失败', 'error');
+                }
+            } catch (error) {
+                showNotification('网络错误', 'error');
+            } finally {
+                this.updating = false;
+            }
+        },
+
+        // iOS快捷指令相关函数
+        getServerUrl() {
+            return window.location.origin;
+        },
+
+        async copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                showNotification('已复制到剪贴板', 'success');
+            } catch (error) {
+                // 降级处理
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showNotification('已复制到剪贴板', 'success');
+            }
+        },
+
+        downloadShortcutTemplate(type) {
+            const serverUrl = this.getServerUrl();
+            const apiKey = this.settings.security.api_key;
+
+            if (!apiKey) {
+                showNotification('请先生成API密钥', 'error');
+                return;
+            }
+
+            let template;
+
+            if (type === 'basic') {
+                template = {
+                    name: "YT-DLP基础下载",
+                    description: "从剪贴板获取URL并下载视频到文件应用",
+                    server_url: serverUrl,
+                    api_key: apiKey,
+                    endpoints: {
+                        download: `${serverUrl}/api/shortcuts/download`,
+                        status: `${serverUrl}/api/shortcuts/status/{download_id}`,
+                        file: `${serverUrl}/api/shortcuts/file/{filename}`
+                    },
+                    instructions: [
+                        "1. 在iOS快捷指令应用中创建新快捷指令",
+                        "2. 添加'获取剪贴板'操作",
+                        "3. 添加'获取URL内容'操作，方法设为POST",
+                        "4. URL设为: " + serverUrl + "/api/shortcuts/download",
+                        "5. 请求体设为JSON格式: {\"url\": \"[剪贴板内容]\", \"api_key\": \"" + apiKey + "\"}",
+                        "6. 添加循环检查下载状态",
+                        "7. 下载完成后保存文件"
+                    ]
+                };
+            } else if (type === 'advanced') {
+                template = {
+                    name: "YT-DLP高级下载",
+                    description: "支持质量选择和进度显示的高级下载",
+                    server_url: serverUrl,
+                    api_key: apiKey,
+                    endpoints: {
+                        download: `${serverUrl}/api/shortcuts/download`,
+                        status: `${serverUrl}/api/shortcuts/status/{download_id}`,
+                        file: `${serverUrl}/api/shortcuts/file/{filename}`
+                    },
+                    features: [
+                        "质量选择 (最高/中等/低)",
+                        "音频/视频选择",
+                        "下载进度显示",
+                        "错误处理",
+                        "自动保存到文件应用"
+                    ],
+                    instructions: [
+                        "1. 获取剪贴板内容",
+                        "2. 显示菜单选择视频质量",
+                        "3. 询问是否只下载音频",
+                        "4. 发送下载请求到API",
+                        "5. 循环检查下载状态并显示进度",
+                        "6. 下载完成后自动保存文件",
+                        "7. 显示完成通知"
+                    ]
+                };
+            }
+
+            // 创建并下载配置文件
+            const blob = new Blob([JSON.stringify(template, null, 2)], {
+                type: 'application/json'
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ytdlp-${type}-shortcut-config.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showNotification(`${type === 'basic' ? '基础' : '高级'}快捷指令配置已下载`, 'success');
         }
     }
 }

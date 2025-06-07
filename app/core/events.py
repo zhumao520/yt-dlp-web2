@@ -41,8 +41,13 @@ class EventBus:
         with self._lock:
             if event_name not in self._listeners:
                 self._listeners[event_name] = []
-            self._listeners[event_name].append(callback)
-            logger.debug(f"📡 注册事件监听器: {event_name} -> {callback.__name__}")
+
+            # 防止重复注册同一个回调函数
+            if callback not in self._listeners[event_name]:
+                self._listeners[event_name].append(callback)
+                logger.debug(f"📡 注册事件监听器: {event_name} -> {callback.__name__}")
+            else:
+                logger.debug(f"📡 监听器已存在，跳过注册: {event_name} -> {callback.__name__}")
 
     def emit(self, event_name: str, data: Any = None):
         """发送事件"""

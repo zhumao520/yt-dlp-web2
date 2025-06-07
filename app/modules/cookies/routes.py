@@ -200,6 +200,94 @@ def validate_cookies():
         return jsonify({'success': False, 'error': '服务器内部错误'}), 500
 
 
+@cookies_bp.route('/api/fix-cookies', methods=['POST'])
+@auth_required
+def fix_cookies():
+    """修复损坏的Cookies文件"""
+    try:
+        logger.info("🔧 开始修复cookies文件")
+        cookies_manager = get_cookies_manager()
+        fixed_count = 0
+        errors = []
+
+        # 获取所有cookies文件
+        cookies_list = cookies_manager.list_cookies()
+        if not cookies_list['success']:
+            error_msg = f"无法获取cookies列表: {cookies_list.get('error', '未知错误')}"
+            logger.error(f"❌ {error_msg}")
+            return jsonify({'success': False, 'error': error_msg}), 500
+
+        total_count = len(cookies_list['cookies'])
+        logger.info(f"📊 找到 {total_count} 个cookies文件需要检查")
+
+        for cookie_info in cookies_list['cookies']:
+            website = cookie_info['website']
+            try:
+                logger.info(f"🔧 正在修复: {website}")
+
+                # 检查文件是否存在
+                cookies_file = cookies_manager.cookies_dir / f"{website}.json"
+                if not cookies_file.exists():
+                    errors.append(f"{website}: 文件不存在")
+                    continue
+
+                # 重新导出并保存，这会触发格式修复
+                export_result = cookies_manager.export_cookies(website, 'netscape')
+                if export_result['success']:
+                    # 重新解析并保存
+                    parsed = cookies_manager._parse_cookies(export_result['content'], 'netscape')
+                    if parsed:
+                        # 更新保存的数据
+                        save_data = {
+                            'website': website,
+                            'format': 'netscape',
+                            'cookies': parsed,
+                            'created_at': cookie_info.get('created_at'),
+                            'updated_at': cookies_manager._get_current_timestamp(),
+                            'count': len(parsed)
+                        }
+
+                        with open(cookies_file, 'w', encoding='utf-8') as f:
+                            json.dump(save_data, f, indent=2, ensure_ascii=False)
+
+                        fixed_count += 1
+                        logger.info(f"✅ 修复cookies成功: {website} ({len(parsed)} 个cookies)")
+                    else:
+                        error_msg = f"{website}: 解析失败 - 无法解析cookies内容"
+                        errors.append(error_msg)
+                        logger.warning(f"⚠️ {error_msg}")
+                else:
+                    error_msg = f"{website}: 导出失败 - {export_result.get('error', '未知错误')}"
+                    errors.append(error_msg)
+                    logger.warning(f"⚠️ {error_msg}")
+            except Exception as e:
+                error_msg = f"{website}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(f"❌ 修复cookies失败 {website}: {e}")
+
+        total_count = len(cookies_list['cookies'])
+        success_message = f'成功修复 {fixed_count}/{total_count} 个cookies文件'
+
+        if errors:
+            logger.warning(f"⚠️ 修复完成，但有 {len(errors)} 个错误")
+        else:
+            logger.info(f"✅ 修复完成，无错误")
+
+        logger.info(f"📊 修复结果: {success_message}")
+
+        return jsonify({
+            'success': True,
+            'fixed_count': fixed_count,
+            'total_count': total_count,
+            'errors': errors,
+            'message': success_message
+        })
+
+    except Exception as e:
+        logger.error(f"❌ 修复cookies失败: {e}")
+        return jsonify({'success': False, 'error': '服务器内部错误'}), 500
+
+
 @cookies_bp.route('/api/test/<website>', methods=['POST'])
 @auth_required
 def test_cookies(website):
@@ -243,6 +331,86 @@ def test_cookies(website):
         return jsonify({'success': False, 'error': '服务器内部错误'}), 500
 
 
+@cookies_bp.route('/api/batch-test', methods=['POST'])
+@auth_required
+def batch_test_cookies():
+    """批量测试Cookies"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+
+        websites = data.get('websites', [])
+        if not websites:
+            return jsonify({'success': False, 'error': '没有指定要测试的网站'}), 400
+
+        cookies_manager = get_cookies_manager()
+        results = []
+        total_valid = 0
+        total_cookies = 0
+
+        for website in websites:
+            try:
+                cookies_data = cookies_manager.get_cookies(website)
+
+                if not cookies_data['success']:
+                    results.append({
+                        'website': website,
+                        'success': False,
+                        'error': cookies_data.get('error', '获取失败'),
+                        'valid_cookies': 0,
+                        'total_cookies': 0
+                    })
+                    continue
+
+                # 检查过期时间
+                cookies = cookies_data['data']['cookies']
+                expired_count = 0
+                valid_count = 0
+                current_time = int(__import__('time').time())
+
+                for cookie in cookies:
+                    expiration = cookie.get('expiration', 0)
+                    if expiration > 0 and expiration < current_time:
+                        expired_count += 1
+                    else:
+                        valid_count += 1
+
+                results.append({
+                    'website': website,
+                    'success': True,
+                    'valid_cookies': valid_count,
+                    'total_cookies': len(cookies),
+                    'expired_cookies': expired_count
+                })
+
+                total_valid += valid_count
+                total_cookies += len(cookies)
+
+            except Exception as e:
+                logger.error(f"❌ 测试网站 {website} 的Cookies失败: {e}")
+                results.append({
+                    'website': website,
+                    'success': False,
+                    'error': '测试失败',
+                    'valid_cookies': 0,
+                    'total_cookies': 0
+                })
+
+        return jsonify({
+            'success': True,
+            'total_websites': len(websites),
+            'total_valid_cookies': total_valid,
+            'total_cookies': total_cookies,
+            'results': results,
+            'test_time': __import__('datetime').datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"❌ 批量测试Cookies失败: {e}")
+        return jsonify({'success': False, 'error': '服务器内部错误'}), 500
+
+
 @cookies_bp.route('/api/batch-delete', methods=['POST'])
 @auth_required
 def batch_delete_cookies():
@@ -251,15 +419,15 @@ def batch_delete_cookies():
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'error': '无效的请求数据'}), 400
-        
+
         websites = data.get('websites', [])
         if not websites:
             return jsonify({'success': False, 'error': '没有指定要删除的网站'}), 400
-        
+
         cookies_manager = get_cookies_manager()
         results = []
         success_count = 0
-        
+
         for website in websites:
             result = cookies_manager.delete_cookies(website)
             results.append({
@@ -269,7 +437,7 @@ def batch_delete_cookies():
             })
             if result['success']:
                 success_count += 1
-        
+
         return jsonify({
             'success': True,
             'total': len(websites),
@@ -277,7 +445,7 @@ def batch_delete_cookies():
             'failed_count': len(websites) - success_count,
             'results': results
         })
-        
+
     except Exception as e:
         logger.error(f"❌ 批量删除Cookies失败: {e}")
         return jsonify({'success': False, 'error': '服务器内部错误'}), 500

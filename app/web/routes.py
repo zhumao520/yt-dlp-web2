@@ -49,8 +49,9 @@ def setup():
 @main_bp.route('/download')
 @auth_required
 def download():
-    """下载页面"""
-    return render_template('main/download.html')
+    """下载页面 - 重定向到首页"""
+    from flask import redirect, url_for
+    return redirect(url_for('main.index'))
 
 
 @main_bp.route('/files')

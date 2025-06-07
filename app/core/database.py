@@ -79,10 +79,13 @@ class Database:
                 ''')
                 
                 conn.commit()
-                
+
                 # 创建默认用户
                 self._create_default_user(conn)
-                
+
+                # 确保用户创建后提交事务
+                conn.commit()
+
                 logger.info("✅ 数据库初始化完成")
                 
         except Exception as e:
@@ -95,24 +98,60 @@ class Database:
             # 检查是否已有用户
             cursor = conn.execute('SELECT COUNT(*) FROM users')
             user_count = cursor.fetchone()[0]
-            
+
+            logger.info(f"📊 当前用户数量: {user_count}")
+
             if user_count == 0:
-                from .config import get_config
                 import hashlib
-                
-                username = get_config('auth.default_username', 'admin')
-                password = get_config('auth.default_password', 'admin123')
+                import os
+
+                # 优先从环境变量读取，然后使用默认值
+                username = os.getenv('ADMIN_USERNAME', 'admin')
+                password = os.getenv('ADMIN_PASSWORD', 'admin123')
+
+                # 记录凭据来源
+                username_source = "环境变量" if os.getenv('ADMIN_USERNAME') else "默认值"
+                password_source = "环境变量" if os.getenv('ADMIN_PASSWORD') else "默认值"
+
+                logger.info(f"🔧 准备创建用户: {username} (来源: {username_source})")
+                logger.info(f"🔑 使用密码: {'***' if password else '未设置'} (来源: {password_source})")
+
                 password_hash = hashlib.sha256(password.encode()).hexdigest()
-                
-                conn.execute('''
-                    INSERT INTO users (username, password_hash, is_admin)
-                    VALUES (?, ?, 1)
+                logger.info(f"🔐 密码哈希: {password_hash[:20]}...")
+
+                # 插入用户
+                cursor = conn.execute('''
+                    INSERT INTO users (username, password_hash, is_admin, created_at)
+                    VALUES (?, ?, 1, CURRENT_TIMESTAMP)
                 ''', (username, password_hash))
-                
-                logger.info(f"✅ 创建默认管理员用户: {username}")
-                
+
+                # 验证插入结果
+                if cursor.rowcount > 0:
+                    logger.info(f"✅ 成功插入用户记录")
+
+                    # 再次检查用户数量
+                    cursor = conn.execute('SELECT COUNT(*) FROM users')
+                    new_count = cursor.fetchone()[0]
+                    logger.info(f"📊 插入后用户数量: {new_count}")
+
+                    # 验证用户数据
+                    cursor = conn.execute('SELECT username, is_admin FROM users WHERE username = ?', (username,))
+                    user_data = cursor.fetchone()
+                    if user_data:
+                        logger.info(f"✅ 用户验证成功: {user_data[0]} (管理员: {user_data[1]})")
+                    else:
+                        logger.error("❌ 用户验证失败：找不到刚创建的用户")
+                else:
+                    logger.error("❌ 用户插入失败：rowcount = 0")
+
+                logger.info(f"✅ 创建默认管理员用户完成: {username}")
+            else:
+                logger.info(f"ℹ️ 已存在 {user_count} 个用户，跳过默认用户创建")
+
         except Exception as e:
             logger.error(f"❌ 创建默认用户失败: {e}")
+            import traceback
+            logger.error(f"详细错误: {traceback.format_exc()}")
     
     @contextmanager
     def get_connection(self):
@@ -261,6 +300,71 @@ class Database:
             INSERT OR REPLACE INTO settings (key, value, updated_at)
             VALUES (?, ?, CURRENT_TIMESTAMP)
         ''', (key, value))
+
+    def ensure_admin_user_exists(self) -> bool:
+        """确保管理员用户存在（智能创建/更新）"""
+        try:
+            import hashlib
+            import os
+
+            # 获取环境变量中的用户名和密码
+            env_username = os.getenv('ADMIN_USERNAME', 'admin')
+            env_password = os.getenv('ADMIN_PASSWORD', 'admin123')
+
+            # 记录使用的凭据来源
+            username_source = "环境变量" if os.getenv('ADMIN_USERNAME') else "默认值"
+            password_source = "环境变量" if os.getenv('ADMIN_PASSWORD') else "默认值"
+
+            logger.info(f"🔧 管理员用户名: {env_username} (来源: {username_source})")
+            logger.info(f"🔑 管理员密码: {'***' if env_password else '未设置'} (来源: {password_source})")
+
+            env_password_hash = hashlib.sha256(env_password.encode()).hexdigest()
+
+            with self.get_connection() as conn:
+                # 检查是否存在管理员用户
+                cursor = conn.execute('SELECT * FROM users WHERE username = ?', (env_username,))
+                existing_user = cursor.fetchone()
+
+                if existing_user:
+                    # 用户存在，检查密码是否需要更新
+                    if existing_user['password_hash'] != env_password_hash:
+                        logger.info(f"🔄 更新管理员用户密码: {env_username}")
+                        conn.execute('''
+                            UPDATE users
+                            SET password_hash = ?, last_login = NULL
+                            WHERE username = ?
+                        ''', (env_password_hash, env_username))
+                        conn.commit()
+                        logger.info("✅ 管理员密码更新成功")
+                    else:
+                        logger.info(f"ℹ️ 管理员用户已存在且密码正确: {env_username}")
+                else:
+                    # 用户不存在，创建新用户
+                    logger.info(f"🔧 创建管理员用户: {env_username}")
+                    conn.execute('''
+                        INSERT INTO users (username, password_hash, is_admin, created_at)
+                        VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+                    ''', (env_username, env_password_hash))
+                    conn.commit()
+                    logger.info("✅ 管理员用户创建成功")
+
+                # 确保至少有一个管理员用户
+                cursor = conn.execute('SELECT COUNT(*) FROM users WHERE is_admin = 1')
+                admin_count = cursor.fetchone()[0]
+
+                if admin_count == 0:
+                    logger.warning("⚠️ 没有管理员用户，强制创建...")
+                    self._create_default_user(conn)
+                    conn.commit()
+
+                logger.info(f"📊 当前管理员用户数量: {admin_count}")
+                return True
+
+        except Exception as e:
+            logger.error(f"❌ 确保管理员用户存在失败: {e}")
+            import traceback
+            logger.error(f"详细错误: {traceback.format_exc()}")
+            return False
 
 
 # 全局数据库实例

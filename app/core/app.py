@@ -52,12 +52,46 @@ def create_app(config_override=None):
                 {"app_name": app.config.get("APP_NAME", "YT-DLP Web V2")},
             )
 
+            # 启动时检查并安装yt-dlp
+            _ensure_ytdlp_available()
+
         logger.info("✅ Flask应用创建完成")
         return app
-        
+
     except Exception as e:
         logger.error(f"❌ Flask应用创建失败: {e}")
         raise
+
+
+def _ensure_ytdlp_available():
+    """确保yt-dlp在启动时可用"""
+    try:
+        logger.info("🔧 检查yt-dlp可用性...")
+
+        from ..scripts.ytdlp_installer import YtdlpInstaller
+        installer = YtdlpInstaller()
+
+        # 检查是否已经可用
+        if installer._check_ytdlp_available():
+            version = installer._get_ytdlp_version()
+            logger.info(f"✅ yt-dlp已可用，版本: {version}")
+            return True
+
+        # 如果不可用，尝试安装
+        logger.info("⚠️ yt-dlp不可用，尝试自动安装...")
+        success = installer.ensure_ytdlp()
+
+        if success:
+            version = installer._get_ytdlp_version()
+            logger.info(f"✅ yt-dlp自动安装成功，版本: {version}")
+        else:
+            logger.warning("⚠️ yt-dlp自动安装失败，请手动安装")
+
+        return success
+
+    except Exception as e:
+        logger.error(f"❌ 检查yt-dlp可用性失败: {e}")
+        return False
 
 
 def _configure_app(app: Flask, config_override=None):
@@ -96,6 +130,12 @@ def _initialize_core_components(app: Flask):
             # 初始化数据库
             from .database import get_database
             db = get_database()
+
+            # 确保管理员用户存在
+            if not db.ensure_admin_user_exists():
+                logger.error("❌ 管理员用户创建失败")
+                raise Exception("管理员用户创建失败")
+
             logger.info("✅ 数据库初始化完成")
             
             # 初始化认证管理器

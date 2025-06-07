@@ -28,24 +28,36 @@ class DownloadManager:
         """初始化下载管理器"""
         try:
             from ...core.config import get_config
-            
+
             # 获取配置
             max_concurrent = get_config('downloader.max_concurrent', 3)
             self.output_dir = Path(get_config('downloader.output_dir', '/app/downloads'))
             self.temp_dir = Path(get_config('downloader.temp_dir', '/app/temp'))
-            
+
             # 创建目录
             self.output_dir.mkdir(parents=True, exist_ok=True)
             self.temp_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # 创建线程池
             self.executor = ThreadPoolExecutor(max_workers=max_concurrent)
-            
+
+            # 启动自动清理
+            self._start_cleanup()
+
             logger.info(f"✅ 下载管理器初始化完成 - 最大并发: {max_concurrent}")
-            
+
         except Exception as e:
             logger.error(f"❌ 下载管理器初始化失败: {e}")
             raise
+
+    def _start_cleanup(self):
+        """启动自动清理"""
+        try:
+            from .cleanup import get_cleanup_manager
+            cleanup_manager = get_cleanup_manager()
+            cleanup_manager.start()
+        except Exception as e:
+            logger.warning(f"⚠️ 启动自动清理失败: {e}")
     
     def create_download(self, url: str, options: Dict[str, Any] = None) -> str:
         """创建下载任务"""
@@ -160,24 +172,19 @@ class DownloadManager:
             file_path = self._download_video(download_id, url, video_info, options)
             
             if file_path and Path(file_path).exists():
-                # 下载成功
-                file_size = Path(file_path).stat().st_size
-                self._update_download_status(download_id, 'completed', 100, file_path, file_size)
-                
-                # 发送下载完成事件
-                from ...core.events import emit, Events
-                emit(Events.DOWNLOAD_COMPLETED, {
-                    'download_id': download_id,
-                    'url': url,
-                    'title': title,
-                    'file_path': file_path,
-                    'file_size': file_size
-                })
-                
+                # 下载成功 - 注意：不在这里发送事件，由_download_video方法统一处理
                 logger.info(f"✅ 下载完成: {download_id} - {title}")
             else:
                 # 下载失败
                 self._update_download_status(download_id, 'failed', error_message='下载文件不存在')
+
+                # 发送下载失败事件
+                from ...core.events import emit, Events
+                emit(Events.DOWNLOAD_FAILED, {
+                    'download_id': download_id,
+                    'url': url,
+                    'error': '下载文件不存在'
+                })
                 
         except Exception as e:
             logger.error(f"❌ 下载执行失败 {download_id}: {e}")
@@ -201,7 +208,11 @@ class DownloadManager:
                 'no_warnings': True,
                 'extract_flat': False,
                 'no_color': True,
-                'ignoreerrors': True
+                'ignoreerrors': True,
+                # 添加更多选项来处理YouTube的限制
+                'extractor_retries': 3,
+                'fragment_retries': 3,
+                'retry_sleep_functions': {'http': lambda n: 2 ** n},
             }
 
             # 添加Cookies支持
@@ -209,6 +220,13 @@ class DownloadManager:
             if cookies_file:
                 ydl_opts['cookiefile'] = cookies_file
                 logger.info(f"✅ 使用Cookies文件: {cookies_file}")
+            else:
+                logger.warning(f"⚠️ 未找到适用的Cookies文件，可能影响某些网站的下载")
+
+            # 添加User-Agent来模拟真实浏览器
+            ydl_opts['http_headers'] = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
 
             with YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -216,7 +234,14 @@ class DownloadManager:
                 return ydl.sanitize_info(info) if info else None
 
         except Exception as e:
-            logger.error(f"❌ 提取视频信息失败: {e}")
+            error_msg = str(e)
+            logger.error(f"❌ 提取视频信息失败: {error_msg}")
+
+            # 检查是否是需要登录的错误
+            if 'Sign in to confirm' in error_msg or 'bot' in error_msg.lower():
+                logger.error("🤖 检测到机器人验证，需要有效的Cookies")
+                raise Exception("需要有效的YouTube Cookies来绕过机器人检测。请在Cookies管理页面上传YouTube的cookies。")
+
             return None
     
     def _download_video(self, download_id: str, url: str, video_info: Dict[str, Any], options: Dict[str, Any]) -> Optional[str]:
@@ -308,6 +333,7 @@ class DownloadManager:
         from ...core.config import get_config
         
         # 基础选项
+        timeout = get_config('downloader.timeout', 300)
         ydl_opts = {
             'outtmpl': str(self.output_dir / f'{download_id}_%(title)s.%(ext)s'),
             'format': get_config('ytdlp.format', 'best[height<=720]'),
@@ -318,6 +344,15 @@ class DownloadManager:
             'extractaudio': False,
             'audioformat': 'mp3',
             'audioquality': '192',
+            # 添加重试和错误处理选项
+            'extractor_retries': 3,
+            'fragment_retries': 3,
+            'retry_sleep_functions': {'http': lambda n: min(2 ** n, 30)},
+            'socket_timeout': min(timeout, 300),  # 使用配置的超时时间，最大300秒
+            # 添加User-Agent
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
         }
         
         # 应用用户选项
@@ -331,17 +366,31 @@ class DownloadManager:
         if 'quality' in options:
             quality = options['quality']
             if quality == 'high':
-                ydl_opts['format'] = 'best'
+                ydl_opts['format'] = 'best[height<=1080]'
             elif quality == 'medium':
                 ydl_opts['format'] = 'best[height<=720]'
             elif quality == 'low':
-                ydl_opts['format'] = 'worst'
+                ydl_opts['format'] = 'worst[height>=360]'
+
+        # 针对YouTube的特殊处理
+        if 'youtube.com' in url or 'youtu.be' in url:
+            ydl_opts.update({
+                'merge_output_format': 'mp4',    # 确保输出mp4格式
+                'writesubtitles': True,          # YouTube通常有字幕
+                'writeautomaticsub': True,       # 自动生成的字幕
+                'subtitleslangs': ['zh', 'zh-CN', 'en'],
+            })
+            logger.info("🎬 检测到YouTube链接，应用特殊配置")
 
         # 添加Cookies支持
         cookies_file = self._get_cookies_for_url(url)
         if cookies_file:
             ydl_opts['cookiefile'] = cookies_file
             logger.info(f"✅ 使用Cookies文件: {cookies_file}")
+        else:
+            # 如果是YouTube且没有cookies，给出警告
+            if 'youtube.com' in url or 'youtu.be' in url:
+                logger.warning(f"⚠️ YouTube下载未使用Cookies，可能遇到机器人检测")
 
         return ydl_opts
 
@@ -421,6 +470,15 @@ class DownloadManager:
     def cleanup(self):
         """清理资源"""
         try:
+            # 停止自动清理
+            try:
+                from .cleanup import get_cleanup_manager
+                cleanup_manager = get_cleanup_manager()
+                cleanup_manager.stop()
+            except Exception as e:
+                logger.warning(f"⚠️ 停止自动清理失败: {e}")
+
+            # 关闭线程池
             if self.executor:
                 self.executor.shutdown(wait=True)
             logger.info("✅ 下载管理器清理完成")

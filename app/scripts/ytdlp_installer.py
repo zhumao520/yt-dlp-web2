@@ -273,25 +273,68 @@ class YtdlpInstaller:
         try:
             if not self._check_ytdlp_available():
                 return None
-            
+
             import yt_dlp
-            
-            # 获取版本信息
-            version = getattr(yt_dlp, '__version__', 'unknown')
-            
+
+            # 获取版本信息 - 多种方法尝试
+            version = self._get_ytdlp_version()
+
             # 获取模块路径
             module_path = getattr(yt_dlp, '__file__', 'unknown')
-            
+
             return {
                 'version': version,
                 'module_path': module_path,
                 'available': True,
                 'install_path': str(self.ytdlp_dir) if self.ytdlp_dir.exists() else None
             }
-            
+
         except Exception as e:
             logger.error(f"❌ 获取yt-dlp信息失败: {e}")
             return None
+
+    def _get_ytdlp_version(self) -> str:
+        """获取yt-dlp版本 - 简化版本"""
+        try:
+            # 方法1: 使用pkg_resources (最可靠)
+            try:
+                import pkg_resources
+                version = pkg_resources.get_distribution('yt-dlp').version
+                if version:
+                    logger.debug(f"通过 pkg_resources 获取版本: {version}")
+                    return str(version)
+            except:
+                pass
+
+            # 方法2: 执行命令行获取版本
+            try:
+                import subprocess
+                result = subprocess.run(['python', '-m', 'yt_dlp', '--version'],
+                                      capture_output=True, text=True, timeout=10)
+                if result.returncode == 0 and result.stdout.strip():
+                    version = result.stdout.strip()
+                    logger.debug(f"通过命令行获取版本: {version}")
+                    return str(version)
+            except:
+                pass
+
+            # 方法3: 检查 __version__ 属性
+            try:
+                import yt_dlp
+                if hasattr(yt_dlp, '__version__'):
+                    version = str(yt_dlp.__version__)
+                    if version and version != 'unknown':
+                        logger.debug(f"通过 __version__ 获取版本: {version}")
+                        return version
+            except:
+                pass
+
+            logger.warning("⚠️ 无法获取yt-dlp版本信息")
+            return "已安装 (版本未知)"
+
+        except Exception as e:
+            logger.error(f"❌ 获取yt-dlp版本失败: {e}")
+            return "检测失败"
     
     def cleanup(self):
         """清理临时文件"""

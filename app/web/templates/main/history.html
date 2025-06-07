@@ -258,13 +258,7 @@ function historyApp() {
                     this.downloads = data.downloads;
                     this.calculateStats();
                     this.filterDownloads();
-                    this.$nextTick(() => {
-                        try {
-                            feather.replace();
-                        } catch (e) {
-                            console.warn('Feather icons replace failed:', e);
-                        }
-                    });
+                    this.$nextTick(() => feather.replace());
                 }
             } catch (error) {
                 console.error('加载下载历史失败:', error);

@@ -89,28 +89,114 @@
             <!-- 文本粘贴 -->
             <div x-show="uploadForm.method === 'text'">
                 <label class="block text-sm font-medium mb-2">Cookies内容</label>
-                <textarea x-model="uploadForm.content" 
-                          class="input-field h-32" 
-                          placeholder="粘贴Cookies内容...&#10;支持Netscape格式或JSON格式"></textarea>
+                <div class="space-y-2">
+                    <textarea x-model="uploadForm.content"
+                              class="input-field resize-y min-h-48 max-h-96"
+                              placeholder="粘贴Cookies内容...&#10;&#10;支持以下格式:&#10;1. Netscape格式 (浏览器导出)&#10;2. JSON格式 (开发者工具)&#10;3. 键值对格式 (name=value)&#10;&#10;示例:&#10;# Netscape HTTP Cookie File&#10;.youtube.com	TRUE	/	FALSE	1234567890	session_token	abc123&#10;&#10;或&#10;&#10;[{&quot;name&quot;: &quot;session_token&quot;, &quot;value&quot;: &quot;abc123&quot;, &quot;domain&quot;: &quot;.youtube.com&quot;}]"></textarea>
+
+                    <!-- 字符计数和格式检测 -->
+                    <div class="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+                        <div class="flex items-center space-x-4">
+                            <span x-text="`${uploadForm.content.length} 字符`"></span>
+                            <span x-show="uploadForm.content.length > 0"
+                                  x-text="detectFormat(uploadForm.content)"
+                                  class="px-2 py-1 rounded text-xs"
+                                  :class="getFormatColor(detectFormat(uploadForm.content))"></span>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button"
+                                    @click="uploadForm.content = ''"
+                                    x-show="uploadForm.content.length > 0"
+                                    class="text-red-500 hover:text-red-700 text-xs">
+                                清空
+                            </button>
+                            <button type="button"
+                                    @click="formatContent()"
+                                    x-show="uploadForm.content.length > 0"
+                                    class="text-blue-500 hover:text-blue-700 text-xs">
+                                格式化
+                            </button>
+                            <button type="button"
+                                    @click="fillExample('netscape')"
+                                    x-show="uploadForm.content.length === 0"
+                                    class="text-green-500 hover:text-green-700 text-xs">
+                                填充Netscape示例
+                            </button>
+                            <button type="button"
+                                    @click="fillExample('json')"
+                                    x-show="uploadForm.content.length === 0"
+                                    class="text-green-500 hover:text-green-700 text-xs">
+                                填充JSON示例
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
             
-            <!-- 格式说明 -->
+            <!-- 格式说明和示例 -->
             <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <h3 class="font-medium text-blue-900 dark:text-blue-300 mb-2">支持的格式</h3>
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-medium text-blue-900 dark:text-blue-300">支持的格式</h3>
+                    <button @click="showExamples = !showExamples"
+                            class="text-blue-600 dark:text-blue-400 text-sm hover:underline">
+                        <span x-text="showExamples ? '隐藏示例' : '查看示例'"></span>
+                    </button>
+                </div>
                 <ul class="text-sm text-blue-800 dark:text-blue-400 space-y-1">
                     <li>• <strong>Netscape格式</strong>: 浏览器导出的标准格式</li>
                     <li>• <strong>JSON格式</strong>: 开发者工具导出的格式</li>
+                    <li>• <strong>键值对格式</strong>: 简单的 name=value 格式</li>
                     <li>• <strong>自动检测</strong>: 系统会自动识别格式并转换</li>
                 </ul>
+
+                <!-- 格式示例 -->
+                <div x-show="showExamples" x-transition class="mt-4 space-y-3">
+                    <div class="text-xs">
+                        <div class="font-medium text-blue-900 dark:text-blue-300 mb-1">Netscape格式示例:</div>
+                        <pre class="bg-gray-100 dark:bg-gray-800 p-2 rounded text-gray-800 dark:text-gray-200 overflow-x-auto"># Netscape HTTP Cookie File
+.youtube.com	TRUE	/	FALSE	1234567890	session_token	abc123
+.youtube.com	TRUE	/	TRUE	1234567890	secure_token	def456</pre>
+                    </div>
+
+                    <div class="text-xs">
+                        <div class="font-medium text-blue-900 dark:text-blue-300 mb-1">JSON格式示例:</div>
+                        <pre class="bg-gray-100 dark:bg-gray-800 p-2 rounded text-gray-800 dark:text-gray-200 overflow-x-auto">[
+  {
+    "name": "session_token",
+    "value": "abc123",
+    "domain": ".youtube.com",
+    "path": "/",
+    "secure": false,
+    "httpOnly": false
+  }
+]</pre>
+                    </div>
+
+                    <div class="text-xs">
+                        <div class="font-medium text-blue-900 dark:text-blue-300 mb-1">键值对格式示例:</div>
+                        <pre class="bg-gray-100 dark:bg-gray-800 p-2 rounded text-gray-800 dark:text-gray-200 overflow-x-auto">session_token=abc123
+secure_token=def456
+user_id=12345</pre>
+                    </div>
+                </div>
             </div>
             
-            <!-- 上传按钮 -->
-            <button @click="uploadCookies()" 
-                    :disabled="!canUpload()" 
-                    class="btn-primary">
-                <i data-feather="upload" class="w-4 h-4 mr-2"></i>
-                上传Cookies
-            </button>
+            <!-- 操作按钮 -->
+            <div class="flex flex-wrap gap-3">
+                <button @click="validateCookies()"
+                        :disabled="!hasContent()"
+                        class="btn-secondary">
+                    <i data-feather="check-circle" class="w-4 h-4 mr-2"></i>
+                    验证格式
+                </button>
+
+                <button @click="uploadCookies()"
+                        :disabled="!canUpload()"
+                        class="btn-primary">
+                    <i data-feather="upload" class="w-4 h-4 mr-2"></i>
+                    上传Cookies
+                </button>
+            </div>
         </div>
     </div>
     
@@ -120,11 +206,58 @@
             <h2 class="text-lg font-semibold flex items-center">
                 <i data-feather="database" class="w-5 h-5 mr-2"></i>
                 已保存的Cookies
+                <span x-show="cookies.length > 0"
+                      class="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400"
+                      x-text="`(${cookies.length})`"></span>
             </h2>
-            <button @click="refreshCookies()" class="btn-secondary">
-                <i data-feather="refresh-cw" class="w-4 h-4 mr-2"></i>
-                刷新
-            </button>
+            <div class="flex space-x-2">
+                <button @click="refreshCookies()" class="btn-secondary">
+                    <i data-feather="refresh-cw" class="w-4 h-4 mr-2"></i>
+                    刷新
+                </button>
+                <button @click="fixCookies()" class="btn-warning">
+                    <i data-feather="tool" class="w-4 h-4 mr-2"></i>
+                    修复格式
+                </button>
+                <button @click="showBatchActions = !showBatchActions"
+                        x-show="cookies.length > 0"
+                        class="btn-secondary">
+                    <i data-feather="settings" class="w-4 h-4 mr-2"></i>
+                    批量操作
+                </button>
+            </div>
+        </div>
+
+        <!-- 批量操作面板 -->
+        <div x-show="showBatchActions && cookies.length > 0"
+             x-transition
+             class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <label class="flex items-center">
+                        <input type="checkbox"
+                               @change="toggleSelectAll($event)"
+                               class="mr-2">
+                        <span class="text-sm">全选</span>
+                    </label>
+                    <span class="text-sm text-gray-600 dark:text-gray-400"
+                          x-text="`已选择 ${selectedCookies.length} 项`"></span>
+                </div>
+                <div class="flex space-x-2">
+                    <button @click="batchTest()"
+                            :disabled="selectedCookies.length === 0"
+                            class="btn-secondary text-sm">
+                        <i data-feather="check-circle" class="w-4 h-4 mr-1"></i>
+                        批量测试
+                    </button>
+                    <button @click="batchDelete()"
+                            :disabled="selectedCookies.length === 0"
+                            class="btn-warning text-sm">
+                        <i data-feather="trash-2" class="w-4 h-4 mr-1"></i>
+                        批量删除
+                    </button>
+                </div>
+            </div>
         </div>
         
         <div x-show="cookies.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -136,8 +269,16 @@
             <template x-for="cookie in cookies" :key="cookie.id">
                 <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                     <div class="flex items-center justify-between">
-                        <div class="flex-1">
-                            <div class="flex items-center space-x-3">
+                        <div class="flex items-center flex-1">
+                            <!-- 批量选择复选框 -->
+                            <div x-show="showBatchActions" class="mr-3">
+                                <input type="checkbox"
+                                       :value="cookie.website"
+                                       x-model="selectedCookies"
+                                       class="rounded">
+                            </div>
+
+                            <div class="flex items-center space-x-3 flex-1">
                                 <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
                                      :class="getWebsiteColor(cookie.website)">
                                     <span x-text="cookie.website.charAt(0).toUpperCase()"></span>
@@ -228,6 +369,9 @@ function cookiesApp() {
             content: ''
         },
         cookies: [],
+        showExamples: false,
+        showBatchActions: false,
+        selectedCookies: [],
         
         async init() {
             await this.loadCookies();
@@ -253,12 +397,71 @@ function cookiesApp() {
         },
         
         canUpload() {
-            const hasWebsite = this.uploadForm.website && 
+            const hasWebsite = this.uploadForm.website &&
                               (this.uploadForm.website !== 'custom' || this.uploadForm.customWebsite);
-            const hasContent = this.uploadForm.method === 'file' ? 
-                              this.uploadForm.file : 
-                              this.uploadForm.content.trim();
+            const hasContent = this.hasContent();
             return hasWebsite && hasContent;
+        },
+
+        hasContent() {
+            return this.uploadForm.method === 'file' ?
+                   this.uploadForm.file :
+                   this.uploadForm.content.trim();
+        },
+
+        async validateCookies() {
+            if (!this.hasContent()) {
+                showNotification('请先输入或选择Cookies内容', 'warning');
+                return;
+            }
+
+            try {
+                let content = '';
+
+                if (this.uploadForm.method === 'file' && this.uploadForm.file) {
+                    // 读取文件内容
+                    content = await this.readFileContent(this.uploadForm.file);
+                } else {
+                    content = this.uploadForm.content;
+                }
+
+                const response = await apiRequest('/cookies/api/validate', {
+                    method: 'POST',
+                    body: JSON.stringify({ cookies: content })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        showNotification(
+                            `验证成功！格式: ${data.format}，包含 ${data.count} 个Cookie`,
+                            'success'
+                        );
+
+                        // 显示预览信息
+                        if (data.preview && data.preview.length > 0) {
+                            console.log('Cookies预览:', data.preview);
+                        }
+                    } else {
+                        showNotification(data.error || '验证失败', 'error');
+                    }
+                } else {
+                    const data = await response.json();
+                    showNotification(data.error || '验证失败', 'error');
+                }
+            } catch (error) {
+                console.error('验证失败:', error);
+                showNotification('验证过程中发生错误', 'error');
+            }
+        },
+
+        async readFileContent(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(e);
+                reader.readAsText(file);
+            });
         },
         
         async uploadCookies() {
@@ -355,6 +558,136 @@ function cookiesApp() {
             await this.loadCookies();
             showNotification('列表已刷新', 'success');
         },
+
+        async fixCookies() {
+            if (!confirm('确定要修复所有Cookies文件的格式吗？这将重新处理所有已保存的Cookies。')) {
+                return;
+            }
+
+            try {
+                showNotification('正在修复Cookies格式...', 'info');
+
+                const response = await apiRequest('/cookies/api/fix-cookies', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        showNotification(
+                            `修复完成！成功修复 ${data.fixed_count}/${data.total_count} 个文件`,
+                            'success'
+                        );
+
+                        if (data.errors.length > 0) {
+                            console.warn('修复过程中的错误:', data.errors);
+                            showNotification(
+                                `有 ${data.errors.length} 个文件修复失败，请查看控制台`,
+                                'warning'
+                            );
+                        }
+
+                        await this.loadCookies();
+                    } else {
+                        showNotification(data.error || '修复失败', 'error');
+                    }
+                } else {
+                    const data = await response.json();
+                    showNotification(data.error || '修复失败', 'error');
+                }
+            } catch (error) {
+                console.error('修复Cookies失败:', error);
+                showNotification('网络错误', 'error');
+            }
+        },
+
+        // 批量操作相关函数
+        toggleSelectAll(event) {
+            if (event.target.checked) {
+                this.selectedCookies = this.cookies.map(cookie => cookie.website);
+            } else {
+                this.selectedCookies = [];
+            }
+        },
+
+        async batchTest() {
+            if (this.selectedCookies.length === 0) {
+                showNotification('请先选择要测试的Cookies', 'warning');
+                return;
+            }
+
+            try {
+                showNotification('正在批量测试Cookies...', 'info');
+
+                const response = await apiRequest('/cookies/api/batch-test', {
+                    method: 'POST',
+                    body: JSON.stringify({ websites: this.selectedCookies })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        const message = `批量测试完成！总计 ${data.total_valid_cookies}/${data.total_cookies} 个有效Cookie`;
+                        showNotification(message, data.total_valid_cookies > 0 ? 'success' : 'warning');
+
+                        // 显示详细结果
+                        console.log('批量测试结果:', data.results);
+
+                        // 刷新列表
+                        await this.loadCookies();
+                    } else {
+                        showNotification(data.error || '批量测试失败', 'error');
+                    }
+                } else {
+                    const data = await response.json();
+                    showNotification(data.error || '批量测试失败', 'error');
+                }
+            } catch (error) {
+                console.error('批量测试失败:', error);
+                showNotification('网络错误', 'error');
+            }
+        },
+
+        async batchDelete() {
+            if (this.selectedCookies.length === 0) {
+                showNotification('请先选择要删除的Cookies', 'warning');
+                return;
+            }
+
+            const confirmMessage = `确定要删除选中的 ${this.selectedCookies.length} 个Cookies吗？此操作不可撤销。`;
+            if (!confirm(confirmMessage)) return;
+
+            try {
+                showNotification('正在批量删除Cookies...', 'info');
+
+                const response = await apiRequest('/cookies/api/batch-delete', {
+                    method: 'POST',
+                    body: JSON.stringify({ websites: this.selectedCookies })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        const message = `批量删除完成！成功删除 ${data.success_count}/${data.total} 个Cookies`;
+                        showNotification(message, 'success');
+
+                        // 清空选择
+                        this.selectedCookies = [];
+
+                        // 刷新列表
+                        await this.loadCookies();
+                    } else {
+                        showNotification(data.error || '批量删除失败', 'error');
+                    }
+                } else {
+                    const data = await response.json();
+                    showNotification(data.error || '批量删除失败', 'error');
+                }
+            } catch (error) {
+                console.error('批量删除失败:', error);
+                showNotification('网络错误', 'error');
+            }
+        },
         
         resetForm() {
             this.uploadForm = {
@@ -400,6 +733,130 @@ function cookiesApp() {
             const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        },
+
+        detectFormat(content) {
+            if (!content || !content.trim()) return '';
+
+            const trimmed = content.trim();
+
+            // 检测 JSON 格式
+            if ((trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+                (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+                try {
+                    JSON.parse(trimmed);
+                    return 'JSON格式';
+                } catch (e) {
+                    return 'JSON格式 (有错误)';
+                }
+            }
+
+            // 检测 Netscape 格式
+            if (trimmed.includes('# Netscape HTTP Cookie File') ||
+                trimmed.includes('\t') && trimmed.split('\n').length > 1) {
+                return 'Netscape格式';
+            }
+
+            // 检测键值对格式
+            if (trimmed.includes('=') && !trimmed.includes('\t')) {
+                return '键值对格式';
+            }
+
+            return '未知格式';
+        },
+
+        getFormatColor(format) {
+            if (format.includes('JSON格式')) {
+                return format.includes('错误') ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+            } else if (format.includes('Netscape格式')) {
+                return 'bg-blue-100 text-blue-800';
+            } else if (format.includes('键值对格式')) {
+                return 'bg-yellow-100 text-yellow-800';
+            }
+            return 'bg-gray-100 text-gray-800';
+        },
+
+        formatContent() {
+            if (!this.uploadForm.content.trim()) return;
+
+            const content = this.uploadForm.content.trim();
+
+            // 尝试格式化 JSON
+            if ((content.startsWith('[') && content.endsWith(']')) ||
+                (content.startsWith('{') && content.endsWith('}'))) {
+                try {
+                    const parsed = JSON.parse(content);
+                    this.uploadForm.content = JSON.stringify(parsed, null, 2);
+                    showNotification('JSON格式化完成', 'success');
+                    return;
+                } catch (e) {
+                    showNotification('JSON格式错误，无法格式化', 'error');
+                    return;
+                }
+            }
+
+            // 格式化 Netscape 格式
+            const lines = content.split('\n');
+            const formatted = lines.map(line => {
+                if (line.startsWith('#') || !line.trim()) return line;
+                const parts = line.split('\t');
+                if (parts.length >= 6) {
+                    // 确保制表符分隔正确
+                    return parts.join('\t');
+                }
+                return line;
+            }).join('\n');
+
+            this.uploadForm.content = formatted;
+            showNotification('格式化完成', 'success');
+        },
+
+        fillExample(format) {
+            if (format === 'netscape') {
+                this.uploadForm.content = `# Netscape HTTP Cookie File
+# Generated by YT-DLP Web V2
+# This is a generated file! Do not edit.
+
+.youtube.com	TRUE	/	FALSE	1735689600	session_token	example_session_token_123
+.youtube.com	TRUE	/	TRUE	1735689600	secure_token	example_secure_token_456
+.youtube.com	TRUE	/	FALSE	1735689600	user_prefs	theme%3Ddark%26lang%3Dzh
+youtube.com	FALSE	/	FALSE	1735689600	visitor_id	example_visitor_id_789`;
+            } else if (format === 'json') {
+                this.uploadForm.content = `[
+  {
+    "name": "session_token",
+    "value": "example_session_token_123",
+    "domain": ".youtube.com",
+    "path": "/",
+    "secure": false,
+    "httpOnly": false,
+    "sameSite": "Lax",
+    "expirationDate": 1735689600
+  },
+  {
+    "name": "secure_token",
+    "value": "example_secure_token_456",
+    "domain": ".youtube.com",
+    "path": "/",
+    "secure": true,
+    "httpOnly": true,
+    "sameSite": "None",
+    "expirationDate": 1735689600
+  },
+  {
+    "name": "user_prefs",
+    "value": "theme=dark&lang=zh",
+    "domain": ".youtube.com",
+    "path": "/",
+    "secure": false,
+    "httpOnly": false,
+    "sameSite": "Lax",
+    "expirationDate": 1735689600
+  }
+]`;
+            }
+
+            showNotification(`已填充${format === 'netscape' ? 'Netscape' : 'JSON'}格式示例`, 'info');
         }
     }
 }
