@@ -1,0 +1,36 @@
+{
+  "website": "youtube",
+  "format": "json",
+  "cookies": [
+    {
+      "name": "VISITOR_INFO1_LIVE",
+      "value": "PLEASE_REPLACE_WITH_REAL_VALUE",
+      "domain": ".youtube.com",
+      "path": "/",
+      "secure": true,
+      "httpOnly": false,
+      "expiration": 1735689600
+    },
+    {
+      "name": "YSC",
+      "value": "PLEASE_REPLACE_WITH_REAL_VALUE",
+      "domain": ".youtube.com",
+      "path": "/",
+      "secure": true,
+      "httpOnly": true,
+      "expiration": 0
+    },
+    {
+      "name": "PREF",
+      "value": "tz=Asia.Shanghai&f4=4000000&f5=30000",
+      "domain": ".youtube.com",
+      "path": "/",
+      "secure": false,
+      "httpOnly": false,
+      "expiration": 1735689600
+    }
+  ],
+  "created_at": "2025-06-07T14:52:00.000Z",
+  "updated_at": "2025-06-07T14:52:00.000Z",
+  "count": 3
+}
