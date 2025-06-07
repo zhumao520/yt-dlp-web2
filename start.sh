@@ -61,6 +61,33 @@ pip install --upgrade pip
 # 检查和安装依赖
 echo "🔍 检查系统依赖..."
 
+# 检查编译工具（用于TgCrypto2等C扩展包）
+if [ -z "$DOCKER_CONTAINER" ]; then
+    echo "🔧 检查编译工具..."
+
+    # 检查基础编译工具
+    missing_tools=()
+
+    if ! command -v gcc >/dev/null 2>&1; then
+        missing_tools+=("gcc")
+    fi
+
+    if ! command -v make >/dev/null 2>&1; then
+        missing_tools+=("make")
+    fi
+
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        echo "⚠️ 缺少编译工具: ${missing_tools[*]}"
+        echo "   这可能导致 TgCrypto2 等包安装失败"
+        echo "   Ubuntu/Debian: sudo apt install build-essential python3-dev"
+        echo "   CentOS/RHEL: sudo yum groupinstall 'Development Tools' && sudo yum install python3-devel"
+        echo "   macOS: xcode-select --install"
+        echo "   Windows: 安装 Visual Studio Build Tools"
+    else
+        echo "✅ 编译工具已安装"
+    fi
+fi
+
 # 检查FFmpeg（仅在非容器环境）
 if [ -z "$DOCKER_CONTAINER" ]; then
     if command -v ffmpeg >/dev/null 2>&1; then
@@ -75,28 +102,38 @@ fi
 
 # 安装Python依赖
 echo "📦 安装Python依赖..."
-if [ -f "requirements.txt" ]; then
-    echo "🔧 尝试安装标准依赖..."
-    if pip install -r requirements.txt; then
-        echo "✅ 标准依赖安装完成"
-    else
-        echo "⚠️ 标准依赖安装失败，尝试宽松版本..."
-        if [ -f "requirements-flexible.txt" ]; then
-            if pip install -r requirements-flexible.txt; then
-                echo "✅ 宽松版本依赖安装完成"
-            else
-                echo "⚠️ 宽松版本也失败，安装基础依赖..."
-                pip install flask requests pyyaml pyjwt yt-dlp
-            fi
-        else
-            echo "⚠️ 安装基础依赖..."
-            pip install flask requests pyyaml pyjwt yt-dlp
-        fi
-    fi
+
+# 先安装核心依赖
+echo "🔧 安装核心依赖..."
+pip install flask>=3.1.1 flask-cors>=6.0.0 pyjwt>=2.10.1 requests>=2.32.3 pyyaml>=6.0.2 yt-dlp>=2025.5.22 gunicorn>=23.0.0 python-dotenv>=1.0.1
+
+# 尝试安装可选的Telegram依赖
+echo "� 尝试安装Telegram依赖..."
+if pip install pyrogrammod>=2.2.1; then
+    echo "✅ pyrogrammod 安装成功"
 else
-    echo "⚠️ 未找到requirements.txt，安装基础依赖..."
-    pip install flask requests pyyaml pyjwt yt-dlp
+    echo "⚠️ pyrogrammod 安装失败，Telegram功能将受限"
 fi
+
+echo "🔐 尝试安装 TgCrypto2 (加密优化库)..."
+if pip install TgCrypto2>=1.2.5; then
+    echo "✅ TgCrypto2 安装成功 - Telegram加密功能已优化"
+else
+    echo "⚠️ TgCrypto2 安装失败，尝试安装原版 TgCrypto..."
+    if pip install TgCrypto>=1.2.5; then
+        echo "✅ TgCrypto 安装成功 - Telegram加密功能已启用"
+    else
+        echo "⚠️ TgCrypto 也安装失败"
+        echo "   原因可能是："
+        echo "   - 缺少编译工具 (gcc, make, python3-dev)"
+        echo "   - 网络问题或架构不兼容"
+        echo "   💡 Telegram基础功能仍可使用，但性能可能受限"
+    fi
+fi
+
+# 安装开发工具（可选）
+echo "🛠️ 尝试安装开发工具..."
+pip install pytest>=8.2.2 black>=24.4.2 flake8>=7.2.0 || echo "⚠️ 开发工具安装失败，不影响运行"
 
 # 验证关键依赖
 echo "🔍 验证关键依赖..."
