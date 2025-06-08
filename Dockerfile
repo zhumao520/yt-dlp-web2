@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV FLASK_ENV=production
 
-# 安装系统依赖
+# 安装系统依赖 (包含 TgCrypto 编译所需的依赖)
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -17,6 +17,10 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     python3-dev \
     build-essential \
+    libssl-dev \
+    libffi-dev \
+    cmake \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # 设置容器环境标识
@@ -43,13 +47,19 @@ RUN pip install --no-cache-dir \
     gunicorn>=23.0.0 \
     python-dotenv>=1.0.1
 
-# 尝试安装Telegram依赖（允许失败）
-RUN pip install --no-cache-dir pyrogrammod>=2.2.1 || echo "⚠️ pyrogrammod安装失败"
+# 安装 Telegram 依赖
+RUN echo "🤖 安装 Telegram 依赖..." && \
+    pip install --no-cache-dir pyrogrammod>=2.2.1 && \
+    pip3 install -U tgcrypto2 && \
+    echo "✅ Telegram 依赖安装完成"
 
-# 尝试安装加密库（多种备选方案）
-RUN pip install --no-cache-dir TgCrypto2>=1.2.5 || \
-    pip install --no-cache-dir TgCrypto>=1.2.5 || \
-    echo "⚠️ 加密库安装失败，Telegram性能可能受限"
+# 验证安装
+RUN python -c "
+import pyrogrammod, TgCrypto
+print(f'✅ pyrogrammod {pyrogrammod.__version__}')
+print(f'✅ TgCrypto2 {getattr(TgCrypto, \"__version__\", \"未知\")}')
+print('🎉 Telegram 依赖验证通过')
+"
 
 # 安装开发工具（允许失败）
 RUN pip install --no-cache-dir pytest>=8.2.2 black>=24.4.2 flake8>=7.2.0 || echo "⚠️ 开发工具安装失败"

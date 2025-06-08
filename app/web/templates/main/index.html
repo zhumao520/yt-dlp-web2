@@ -35,7 +35,7 @@
             </div>
             
             <!-- 视频信息预览 -->
-            <div x-show="videoInfo" x-cloak class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div x-show="videoInfo" x-cloak class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                 <div class="flex items-start space-x-4">
                     <img x-show="videoInfo?.thumbnail" 
                          :src="videoInfo?.thumbnail" 
@@ -57,9 +57,9 @@
                 <div>
                     <label class="block text-sm font-medium mb-2">视频质量</label>
                     <select x-model="form.quality" class="input-field">
-                        <option value="best">最高质量</option>
+                        <option value="high">最高质量 (4K/1080p)</option>
                         <option value="medium" selected>中等质量 (720p)</option>
-                        <option value="low">低质量</option>
+                        <option value="low">低质量 (360p)</option>
                     </select>
                 </div>
                 
@@ -106,7 +106,7 @@
         
         <div class="space-y-4">
             <template x-for="download in activeDownloads" :key="download.id">
-                <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                     <div class="flex items-center justify-between mb-2">
                         <h3 class="font-medium text-gray-900 dark:text-white" 
                             x-text="download.title || '获取信息中...'"></h3>
@@ -119,7 +119,7 @@
                          x-text="download.url"></div>
                     
                     <!-- 进度条 -->
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
+                    <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 mb-2">
                         <div class="bg-blue-500 h-2 rounded-full progress-bar" 
                              :style="`width: ${download.progress}%`"></div>
                     </div>
@@ -158,7 +158,7 @@
         
         <div x-show="recentDownloads.length > 0" class="space-y-3">
             <template x-for="download in recentDownloads.slice(0, 5)" :key="download.id">
-                <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+                <div class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg">
                     <div class="flex-1">
                         <h3 class="font-medium text-gray-900 dark:text-white" 
                             x-text="download.title || 'Unknown'"></h3>

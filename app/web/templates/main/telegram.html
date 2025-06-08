@@ -46,12 +46,12 @@
                     <span>Bot API</span>
                 </div>
                 <div class="ml-auto flex items-center">
-                    <i :data-feather="connectionStatus.bot_api ? 'check' : 'x'" 
-                       :class="connectionStatus.bot_api ? 'text-green-500' : 'text-red-500'" 
+                    <i :data-feather="getStatusIcon('bot_api')"
+                       :class="getStatusColor('bot_api')"
                        class="w-5 h-5"></i>
-                    <span class="ml-2 text-sm" 
-                          :class="connectionStatus.bot_api ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
-                        <span x-text="connectionStatus.bot_api ? '正常' : '异常'"></span>
+                    <span class="ml-2 text-sm"
+                          :class="getStatusTextColor('bot_api')">
+                        <span x-text="getStatusText('bot_api')"></span>
                     </span>
                 </div>
             </div>
@@ -62,12 +62,12 @@
                     <span>Pyrogram</span>
                 </div>
                 <div class="ml-auto flex items-center">
-                    <i :data-feather="connectionStatus.pyrogram ? 'check' : 'x'" 
-                       :class="connectionStatus.pyrogram ? 'text-green-500' : 'text-red-500'" 
+                    <i :data-feather="getStatusIcon('pyrogram')"
+                       :class="getStatusColor('pyrogram')"
                        class="w-5 h-5"></i>
-                    <span class="ml-2 text-sm" 
-                          :class="connectionStatus.pyrogram ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
-                        <span x-text="connectionStatus.pyrogram ? '正常' : '异常'"></span>
+                    <span class="ml-2 text-sm"
+                          :class="getStatusTextColor('pyrogram')">
+                        <span x-text="getStatusText('pyrogram')"></span>
                     </span>
                 </div>
             </div>
@@ -83,7 +83,7 @@
         
         <form @submit.prevent="saveConfig()" class="space-y-4">
             <!-- 启用开关 -->
-            <div class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+            <div class="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg">
                 <div>
                     <h3 class="font-medium">启用Telegram功能</h3>
                     <p class="text-sm text-gray-600 dark:text-gray-400">开启后可以接收推送通知和使用机器人下载</p>
@@ -251,13 +251,15 @@ function telegramApp() {
             file_size_limit: 50
         },
         connectionStatus: {
-            bot_api: false,
-            pyrogram: false
+            bot_api: null,  // null表示未检测，false表示异常，true表示正常
+            pyrogram: null
         },
         testing: false,
         
         async init() {
             await this.loadConfig();
+            // 页面加载时自动检测连接状态（静默模式，不显示通知）
+            await this.testConnection(true);
         },
         
         async loadConfig() {
@@ -316,39 +318,90 @@ function telegramApp() {
             }
         },
         
-        async testConnection() {
+        async testConnection(silent = false) {
             if (!this.config.bot_token || !this.config.chat_id) {
-                showNotification('请先配置Bot Token和Chat ID', 'warning');
+                this.connectionStatus = {
+                    bot_api: null,
+                    pyrogram: null
+                };
+                if (!silent) {
+                    showNotification('请先配置Bot Token和Chat ID', 'warning');
+                }
                 return;
             }
-            
+
             this.testing = true;
-            
+
             try {
                 const response = await apiRequest('/api/telegram/test', {
                     method: 'POST'
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     this.connectionStatus = {
                         bot_api: data.bot_api || false,
                         pyrogram: data.pyrogram || false
                     };
-                    
-                    if (data.success) {
-                        showNotification('连接测试成功', 'success');
-                    } else {
-                        showNotification(data.error || '连接测试失败', 'error');
+
+                    if (!silent) {
+                        if (data.success) {
+                            showNotification('连接测试成功', 'success');
+                        } else {
+                            showNotification(data.error || '连接测试失败', 'error');
+                        }
                     }
                 } else {
-                    showNotification('测试失败', 'error');
+                    this.connectionStatus = {
+                        bot_api: false,
+                        pyrogram: false
+                    };
+                    if (!silent) {
+                        showNotification('测试失败', 'error');
+                    }
                 }
             } catch (error) {
-                showNotification('网络错误', 'error');
+                this.connectionStatus = {
+                    bot_api: false,
+                    pyrogram: false
+                };
+                if (!silent) {
+                    showNotification('网络错误', 'error');
+                }
             } finally {
                 this.testing = false;
             }
+        },
+
+        // 状态处理方法
+        getStatusIcon(type) {
+            const status = this.connectionStatus[type];
+            if (status === null) return 'clock';  // 未检测
+            return status ? 'check' : 'x';        // 正常/异常
+        },
+
+        getStatusColor(type) {
+            const status = this.connectionStatus[type];
+            if (status === null) return 'text-gray-500';      // 未检测
+            return status ? 'text-green-500' : 'text-red-500'; // 正常/异常
+        },
+
+        getStatusTextColor(type) {
+            const status = this.connectionStatus[type];
+            if (status === null) return 'text-gray-600 dark:text-gray-400';
+            return status ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+        },
+
+        getStatusText(type) {
+            const status = this.connectionStatus[type];
+            if (status === null) {
+                // 检查是否有配置
+                if (!this.config.bot_token || !this.config.chat_id) {
+                    return '未配置';
+                }
+                return '检测中...';
+            }
+            return status ? '正常' : '异常';
         }
     }
 }

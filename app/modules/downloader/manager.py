@@ -199,50 +199,112 @@ class DownloadManager:
             })
     
     def _extract_video_info(self, url: str) -> Optional[Dict[str, Any]]:
-        """提取视频信息"""
+        """提取视频信息 - 使用智能回退机制"""
         try:
-            from yt_dlp import YoutubeDL
+            # 检查是否是YouTube链接
+            is_youtube = 'youtube.com' in url or 'youtu.be' in url
 
-            ydl_opts = {
-                'quiet': True,
-                'no_warnings': True,
-                'extract_flat': False,
-                'no_color': True,
-                'ignoreerrors': True,
-                # 添加更多选项来处理YouTube的限制
-                'extractor_retries': 3,
-                'fragment_retries': 3,
-                'retry_sleep_functions': {'http': lambda n: 2 ** n},
-            }
-
-            # 添加Cookies支持
-            cookies_file = self._get_cookies_for_url(url)
-            if cookies_file:
-                ydl_opts['cookiefile'] = cookies_file
-                logger.info(f"✅ 使用Cookies文件: {cookies_file}")
+            if is_youtube:
+                return self._extract_youtube_info_with_fallback(url)
             else:
-                logger.warning(f"⚠️ 未找到适用的Cookies文件，可能影响某些网站的下载")
+                return self._extract_general_video_info(url)
 
-            # 添加User-Agent来模拟真实浏览器
-            ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"❌ 提取视频信息失败: {error_msg}")
+            raise
+
+    def _extract_youtube_info_with_fallback(self, url: str) -> Optional[Dict[str, Any]]:
+        """YouTube视频信息提取 - 智能回退机制"""
+        from yt_dlp import YoutubeDL
+
+        # 2025年最新的YouTube回退策略
+        strategies = [
+            {
+                'name': 'Android VR客户端',
+                'opts': self._get_android_vr_opts(),
+                'description': '无需PO Token，当前最稳定'
+            },
+            {
+                'name': 'iOS客户端',
+                'opts': self._get_ios_opts(),
+                'description': '移动端API，稳定可靠'
+            },
+            {
+                'name': 'Android客户端',
+                'opts': self._get_android_opts(),
+                'description': '移动端API备用方案'
+            },
+            {
+                'name': '静态Cookies',
+                'opts': self._get_cookies_opts(url),
+                'description': '使用预配置的cookies文件'
+            },
+            {
+                'name': '默认方式',
+                'opts': self._get_default_opts(url),
+                'description': '标准网页端API'
             }
+        ]
+
+        last_error = None
+
+        for strategy in strategies:
+            if strategy['opts'] is None:
+                continue
+
+            try:
+                logger.info(f"🔄 尝试使用 {strategy['name']} 获取YouTube视频信息...")
+
+                with YoutubeDL(strategy['opts']) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    if info:
+                        logger.info(f"✅ {strategy['name']} 成功获取视频信息")
+                        return ydl.sanitize_info(info)
+
+            except Exception as e:
+                error_msg = str(e)
+                logger.warning(f"❌ {strategy['name']} 失败: {error_msg}")
+                last_error = error_msg
+
+                # 如果是严重错误，直接抛出
+                if 'private' in error_msg.lower() or 'not available' in error_msg.lower():
+                    raise Exception("视频不可用或为私有内容。")
+
+                continue
+
+        # 所有策略都失败了
+        if last_error:
+            if 'Sign in to confirm' in last_error or 'bot' in last_error.lower():
+                raise Exception("YouTube检测到机器人行为。建议：1) 上传有效的Cookies；2) 稍后重试。")
+            elif 'timeout' in last_error.lower():
+                raise Exception("网络超时，请稍后重试。")
+            else:
+                raise Exception(f"所有方法都失败了。最后错误: {last_error}")
+        else:
+            raise Exception("无法获取视频信息，请检查链接是否正确。")
+
+    def _extract_general_video_info(self, url: str) -> Optional[Dict[str, Any]]:
+        """提取非YouTube视频信息"""
+        from yt_dlp import YoutubeDL
+
+        try:
+            ydl_opts = self._get_default_opts(url)
 
             with YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                # 确保返回可序列化的字典
                 return ydl.sanitize_info(info) if info else None
 
         except Exception as e:
             error_msg = str(e)
             logger.error(f"❌ 提取视频信息失败: {error_msg}")
 
-            # 检查是否是需要登录的错误
-            if 'Sign in to confirm' in error_msg or 'bot' in error_msg.lower():
-                logger.error("🤖 检测到机器人验证，需要有效的Cookies")
-                raise Exception("需要有效的YouTube Cookies来绕过机器人检测。请在Cookies管理页面上传YouTube的cookies。")
-
-            return None
+            if 'timeout' in error_msg.lower():
+                raise Exception("网络超时，请稍后重试。")
+            elif 'not available' in error_msg.lower():
+                raise Exception("视频不可用或为私有内容。")
+            else:
+                raise Exception(f"获取视频信息失败: {error_msg}")
     
     def _download_video(self, download_id: str, url: str, video_info: Dict[str, Any], options: Dict[str, Any]) -> Optional[str]:
         """下载视频"""
@@ -285,9 +347,13 @@ class DownloadManager:
             downloaded_file = self._find_downloaded_file(download_id, video_info)
             if downloaded_file:
                 logger.info(f"✅ 文件下载成功: {downloaded_file}")
+
+                # 应用智能文件名策略（如果需要）
+                final_file = self._apply_smart_filename(downloaded_file, video_info)
+
                 # 获取文件大小
-                file_size = Path(downloaded_file).stat().st_size if Path(downloaded_file).exists() else 0
-                self._update_download_status(download_id, 'completed', 100, downloaded_file, file_size)
+                file_size = Path(final_file).stat().st_size if Path(final_file).exists() else 0
+                self._update_download_status(download_id, 'completed', 100, final_file, file_size)
 
                 # 发送下载完成事件
                 from ...core.events import emit, Events
@@ -295,7 +361,7 @@ class DownloadManager:
                     'download_id': download_id,
                     'url': url,
                     'title': video_info.get('title', 'Unknown'),
-                    'file_path': downloaded_file,
+                    'file_path': final_file,
                     'file_size': file_size,
                     'options': options
                 })
@@ -312,7 +378,7 @@ class DownloadManager:
                     'error': "下载完成但未找到文件"
                 })
 
-            return downloaded_file
+            return final_file if downloaded_file else None
 
         except Exception as e:
             logger.error(f"❌ 视频下载失败: {e}")
@@ -328,14 +394,127 @@ class DownloadManager:
 
             return None
     
+    def _sanitize_filename(self, filename: str, max_length: int = 80) -> str:
+        """清理和截断文件名"""
+        import re
+
+        # 移除或替换特殊字符
+        filename = re.sub(r'[<>:"/\\|?*]', '', filename)
+        filename = re.sub(r'[｜｜]', '_', filename)  # 替换中文竖线
+        filename = re.sub(r'[，。！？；：]', '_', filename)  # 替换中文标点
+        filename = re.sub(r'\s+', '_', filename)  # 替换空格为下划线
+        filename = re.sub(r'_+', '_', filename)  # 合并多个下划线
+        filename = filename.strip('_')  # 移除首尾下划线
+
+        # 截断长度
+        if len(filename) > max_length:
+            filename = filename[:max_length].rstrip('_')
+
+        return filename or 'video'  # 如果为空则使用默认名称
+
+    def _generate_smart_filename(self, title: str, ext: str) -> str:
+        """生成智能文件名：处理长度限制和重复冲突"""
+        import re
+        from ...core.config import get_config
+
+        # 获取长度限制配置
+        max_length = get_config('downloader.max_filename_length', 150)
+
+        # 智能处理原始文件名
+        base_filename = title
+
+        # 1. 清理危险字符（保持最小清理）
+        # 只清理真正有问题的字符，保留大部分原始字符
+        dangerous_chars = r'[<>:"/\\|?*\x00-\x1f]'
+        base_filename = re.sub(dangerous_chars, '', base_filename)
+
+        # 2. 处理文件名长度
+        # 考虑扩展名长度，为UUID预留空间
+        max_base_length = max_length - len(ext) - 1  # -1 for dot
+        uuid_space = 10  # 短UUID长度 + 下划线
+
+        if len(base_filename) > max_base_length:
+            # 如果太长，智能截断
+            # 优先保留前面的内容，但尝试保留完整的词
+            truncated = base_filename[:max_base_length - uuid_space]
+
+            # 尝试在词边界截断
+            words = truncated.split()
+            if len(words) > 1:
+                # 移除最后一个可能不完整的词
+                truncated = ' '.join(words[:-1])
+
+            base_filename = truncated.rstrip(' -_')
+            logger.info(f"📏 文件名过长，已截断: {title[:50]}... -> {base_filename}")
+
+        # 3. 检查文件是否已存在
+        candidate_filename = f"{base_filename}.{ext}"
+        candidate_path = self.output_dir / candidate_filename
+
+        if not candidate_path.exists():
+            # 文件不存在，直接使用
+            return candidate_filename
+
+        # 4. 文件已存在，添加UUID后缀
+        import uuid
+        short_uuid = str(uuid.uuid4())[:8]  # 使用短UUID
+        final_filename = f"{base_filename}_{short_uuid}.{ext}"
+
+        logger.info(f"📝 文件名冲突，添加UUID后缀: {candidate_filename} -> {final_filename}")
+
+        return final_filename
+
+    def _apply_smart_filename(self, downloaded_file: str, video_info: Dict[str, Any]) -> str:
+        """应用智能文件名策略到已下载的文件"""
+        try:
+            # 获取文件信息
+            file_path = Path(downloaded_file)
+            if not file_path.exists():
+                logger.warning(f"⚠️ 文件不存在，无法重命名: {downloaded_file}")
+                return downloaded_file
+
+            title = video_info.get('title', '')
+            if not title:
+                logger.warning(f"⚠️ 视频标题为空，保持原文件名: {downloaded_file}")
+                return downloaded_file
+
+            # 生成智能文件名
+            ext = file_path.suffix[1:]  # 移除点号
+            smart_filename = self._generate_smart_filename(title, ext)
+
+            # 如果文件名没有变化，直接返回
+            if smart_filename == file_path.name:
+                return downloaded_file
+
+            # 重命名文件
+            new_file_path = file_path.parent / smart_filename
+
+            try:
+                file_path.rename(new_file_path)
+                logger.info(f"📝 文件重命名成功: {file_path.name} -> {smart_filename}")
+                return str(new_file_path)
+            except Exception as e:
+                logger.warning(f"⚠️ 文件重命名失败: {e}，保持原文件名")
+                return downloaded_file
+
+        except Exception as e:
+            logger.error(f"❌ 应用智能文件名失败: {e}")
+            return downloaded_file
+
     def _build_download_options(self, download_id: str, options: Dict[str, Any], url: str) -> Dict[str, Any]:
         """构建下载选项"""
         from ...core.config import get_config
-        
+
         # 基础选项
         timeout = get_config('downloader.timeout', 300)
+
+        # 智能文件名策略：保持原始文件名，下载后处理长度和冲突
+        outtmpl = str(self.output_dir / '%(title)s.%(ext)s')
+        restrict_filenames = False  # 保持原始字符，后续智能处理
+        windows_filenames = False
+
         ydl_opts = {
-            'outtmpl': str(self.output_dir / f'{download_id}_%(title)s.%(ext)s'),
+            'outtmpl': outtmpl,
             'format': get_config('ytdlp.format', 'best[height<=720]'),
             'writesubtitles': False,
             'writeautomaticsub': False,
@@ -352,7 +531,10 @@ class DownloadManager:
             # 添加User-Agent
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
+            },
+            # 根据策略设置文件名清理选项
+            'restrictfilenames': restrict_filenames,
+            'windowsfilenames': windows_filenames,
         }
         
         # 应用用户选项
@@ -366,11 +548,16 @@ class DownloadManager:
         if 'quality' in options:
             quality = options['quality']
             if quality == 'high':
-                ydl_opts['format'] = 'best[height<=1080]'
+                # 4K优先，然后1080p，确保获得最高质量
+                ydl_opts['format'] = 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best'
             elif quality == 'medium':
-                ydl_opts['format'] = 'best[height<=720]'
+                # 720p质量，优先mp4格式
+                ydl_opts['format'] = 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]'
             elif quality == 'low':
-                ydl_opts['format'] = 'worst[height>=360]'
+                # 360p质量
+                ydl_opts['format'] = 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/worst[height>=360]/worst'
+
+            logger.info(f"🎬 设置视频质量: {quality} -> {ydl_opts['format']}")
 
         # 针对YouTube的特殊处理
         if 'youtube.com' in url or 'youtu.be' in url:
@@ -394,6 +581,111 @@ class DownloadManager:
 
         return ydl_opts
 
+    def _get_android_vr_opts(self) -> Dict[str, Any]:
+        """获取Android VR客户端配置"""
+        return {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            'no_color': True,
+            'ignoreerrors': True,
+            'socket_timeout': 30,
+            'extractor_retries': 1,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android_vr']
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'com.google.android.apps.youtube.vr.oculus/1.56.21 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip'
+            }
+        }
+
+    def _get_ios_opts(self) -> Dict[str, Any]:
+        """获取iOS客户端配置"""
+        return {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            'no_color': True,
+            'ignoreerrors': True,
+            'socket_timeout': 25,
+            'extractor_retries': 1,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios']
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)'
+            }
+        }
+
+    def _get_android_opts(self) -> Dict[str, Any]:
+        """获取Android客户端配置"""
+        return {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            'no_color': True,
+            'ignoreerrors': True,
+            'socket_timeout': 25,
+            'extractor_retries': 1,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android']
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip'
+            }
+        }
+
+    def _get_cookies_opts(self, url: str) -> Optional[Dict[str, Any]]:
+        """获取静态Cookies配置"""
+        try:
+            cookies_file = self._get_cookies_for_url(url)
+            if not cookies_file:
+                return None
+
+            return {
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,
+                'no_color': True,
+                'ignoreerrors': True,
+                'socket_timeout': 30,
+                'extractor_retries': 1,
+                'cookiefile': cookies_file,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
+            }
+        except Exception:
+            return None
+
+    def _get_default_opts(self, url: str) -> Dict[str, Any]:
+        """获取默认配置"""
+        opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            'no_color': True,
+            'ignoreerrors': True,
+            'socket_timeout': 30,
+            'extractor_retries': 2,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        }
+
+        # 添加Cookies支持（如果有的话）
+        cookies_file = self._get_cookies_for_url(url)
+        if cookies_file:
+            opts['cookiefile'] = cookies_file
+
+        return opts
+
     def _get_cookies_for_url(self, url: str) -> Optional[str]:
         """为URL获取对应的Cookies文件"""
         try:
@@ -407,22 +699,40 @@ class DownloadManager:
     def _find_downloaded_file(self, download_id: str, video_info: Dict[str, Any]) -> Optional[str]:
         """查找下载的文件"""
         try:
-            # 搜索包含download_id的文件
+            # 智能文件查找：按标题搜索
+            title = video_info.get('title', '')
+            if title:
+                # 尝试精确匹配
+                for ext in ['mp4', 'mkv', 'webm', 'avi', 'mov', 'flv', 'm4a', 'mp3', 'wav']:
+                    exact_file = self.output_dir / f"{title}.{ext}"
+                    if exact_file.exists():
+                        return str(exact_file)
+
+                # 如果精确匹配失败，尝试模糊匹配
+                # 清理标题中的特殊字符进行搜索
+                safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).strip()
+                if safe_title:
+                    for file_path in self.output_dir.glob(f'*{safe_title}*'):
+                        if file_path.is_file():
+                            return str(file_path)
+
+                # 最后尝试搜索包含部分标题的文件
+                title_words = title.split()[:3]  # 取前3个词
+                for word in title_words:
+                    if len(word) > 3:  # 只搜索长度大于3的词
+                        clean_word = "".join(c for c in word if c.isalnum())
+                        if clean_word:
+                            for file_path in self.output_dir.glob(f'*{clean_word}*'):
+                                if file_path.is_file():
+                                    return str(file_path)
+
+            # 如果还是没找到，搜索包含download_id的文件（兼容性）
             for file_path in self.output_dir.glob(f'{download_id}_*'):
                 if file_path.is_file():
                     return str(file_path)
-            
-            # 如果没找到，尝试按标题搜索
-            title = video_info.get('title', '')
-            if title:
-                # 清理标题中的特殊字符
-                safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).strip()
-                for file_path in self.output_dir.glob(f'*{safe_title}*'):
-                    if file_path.is_file():
-                        return str(file_path)
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"❌ 查找下载文件失败: {e}")
             return None

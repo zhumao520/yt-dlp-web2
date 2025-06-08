@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图标测试页面</title>
+    
+    <!-- Tailwind CSS -->
+    <link href="https://unpkg.com/tailwindcss@3.4.0/dist/tailwind.min.css" rel="stylesheet">
+    
+    <!-- Feather Icons -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50 p-8" x-data="iconTest()">
+    
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">图标测试页面</h1>
+        
+        <!-- 基础图标测试 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">基础图标测试</h2>
+            <div class="grid grid-cols-6 gap-4">
+                <div class="flex flex-col items-center p-4 border rounded">
+                    <i data-feather="download" class="w-8 h-8 mb-2"></i>
+                    <span class="text-sm">download</span>
+                </div>
+                <div class="flex flex-col items-center p-4 border rounded">
+                    <i data-feather="upload" class="w-8 h-8 mb-2"></i>
+                    <span class="text-sm">upload</span>
+                </div>
+                <div class="flex flex-col items-center p-4 border rounded">
+                    <i data-feather="settings" class="w-8 h-8 mb-2"></i>
+                    <span class="text-sm">settings</span>
+                </div>
+                <div class="flex flex-col items-center p-4 border rounded">
+                    <i data-feather="user" class="w-8 h-8 mb-2"></i>
+                    <span class="text-sm">user</span>
+                </div>
+                <div class="flex flex-col items-center p-4 border rounded">
+                    <i data-feather="folder" class="w-8 h-8 mb-2"></i>
+                    <span class="text-sm">folder</span>
+                </div>
+                <div class="flex flex-col items-center p-4 border rounded">
+                    <i data-feather="file" class="w-8 h-8 mb-2"></i>
+                    <span class="text-sm">file</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 导航图标测试 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">导航图标测试</h2>
+            <div class="flex space-x-4">
+                <a href="#" class="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors duration-200">
+                    <i data-feather="download" class="w-4 h-4"></i>
+                    <span>下载</span>
+                </a>
+                <a href="#" class="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors duration-200">
+                    <i data-feather="folder" class="w-4 h-4"></i>
+                    <span>文件</span>
+                </a>
+                <a href="#" class="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors duration-200">
+                    <i data-feather="clock" class="w-4 h-4"></i>
+                    <span>历史</span>
+                </a>
+                <a href="#" class="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors duration-200">
+                    <i data-feather="send" class="w-4 h-4"></i>
+                    <span>Telegram</span>
+                </a>
+                <a href="#" class="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors duration-200">
+                    <i data-feather="key" class="w-4 h-4"></i>
+                    <span>Cookies</span>
+                </a>
+                <a href="#" class="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors duration-200">
+                    <i data-feather="settings" class="w-4 h-4"></i>
+                    <span>设置</span>
+                </a>
+            </div>
+        </div>
+        
+        <!-- 动态图标测试 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">动态图标测试</h2>
+            <div class="space-y-4">
+                <div class="flex items-center space-x-4">
+                    <button @click="togglePlay()" class="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
+                        <i :data-feather="isPlaying ? 'pause' : 'play'" class="w-4 h-4"></i>
+                        <span x-text="isPlaying ? '暂停' : '播放'"></span>
+                    </button>
+                    <span class="text-sm text-gray-600">状态: <span x-text="isPlaying ? '播放中' : '已暂停'"></span></span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button @click="toggleVisible()" class="flex items-center space-x-2 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">
+                        <i :data-feather="isVisible ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                        <span x-text="isVisible ? '隐藏' : '显示'"></span>
+                    </button>
+                    <span class="text-sm text-gray-600">状态: <span x-text="isVisible ? '可见' : '隐藏'"></span></span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 手动刷新测试 -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">手动刷新测试</h2>
+            <div class="space-y-4">
+                <button @click="refreshIcons()" class="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600">
+                    <i data-feather="refresh-cw" class="w-4 h-4 inline mr-2"></i>
+                    刷新图标
+                </button>
+                <p class="text-sm text-gray-600">点击按钮手动刷新所有图标</p>
+                <div class="text-xs text-gray-500">
+                    刷新次数: <span x-text="refreshCount"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 强化的 Feather Icons 初始化
+        function initFeatherIcons() {
+            try {
+                if (typeof feather !== 'undefined') {
+                    feather.replace();
+                    console.log('Feather icons initialized successfully');
+                } else {
+                    console.warn('Feather library not loaded');
+                }
+            } catch (e) {
+                console.warn('Feather icons initialization failed:', e);
+            }
+        }
+
+        // 多重初始化确保图标显示
+        document.addEventListener('DOMContentLoaded', function() {
+            // 立即尝试初始化
+            initFeatherIcons();
+            
+            // 延迟再次初始化，确保所有元素都已渲染
+            setTimeout(initFeatherIcons, 100);
+            setTimeout(initFeatherIcons, 500);
+        });
+
+        // 页面完全加载后再次初始化
+        window.addEventListener('load', function() {
+            setTimeout(initFeatherIcons, 100);
+        });
+
+        // 为Alpine.js提供全局函数
+        window.initFeatherIcons = initFeatherIcons;
+        
+        // Alpine.js 应用
+        function iconTest() {
+            return {
+                isPlaying: false,
+                isVisible: true,
+                refreshCount: 0,
+                
+                togglePlay() {
+                    this.isPlaying = !this.isPlaying;
+                    this.$nextTick(() => {
+                        initFeatherIcons();
+                    });
+                },
+                
+                toggleVisible() {
+                    this.isVisible = !this.isVisible;
+                    this.$nextTick(() => {
+                        initFeatherIcons();
+                    });
+                },
+                
+                refreshIcons() {
+                    this.refreshCount++;
+                    initFeatherIcons();
+                }
+            }
+        }
+    </script>
+</body>
+</html>

@@ -78,13 +78,7 @@ def main():
         with app.app_context():
             from app.core.database import get_database
             db = get_database()
-
-            # 确保管理员用户存在
-            logger.info("👤 检查管理员用户...")
-            if not db.ensure_admin_user_exists():
-                logger.error("❌ 管理员用户创建失败")
-                sys.exit(1)
-
+            # 数据库在get_database()时已自动初始化
             logger.info("✅ 数据库初始化完成")
 
         # 获取配置

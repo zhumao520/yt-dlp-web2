@@ -107,28 +107,25 @@ echo "📦 安装Python依赖..."
 echo "🔧 安装核心依赖..."
 pip install flask>=3.1.1 flask-cors>=6.0.0 pyjwt>=2.10.1 requests>=2.32.3 pyyaml>=6.0.2 yt-dlp>=2025.5.22 gunicorn>=23.0.0 python-dotenv>=1.0.1
 
-# 尝试安装可选的Telegram依赖
-echo "� 尝试安装Telegram依赖..."
-if pip install pyrogrammod>=2.2.1; then
-    echo "✅ pyrogrammod 安装成功"
-else
-    echo "⚠️ pyrogrammod 安装失败，Telegram功能将受限"
-fi
+# 检查 Telegram 依赖
+echo "📱 检查 Telegram 依赖..."
 
-echo "🔐 尝试安装 TgCrypto2 (加密优化库)..."
-if pip install TgCrypto2>=1.2.5; then
-    echo "✅ TgCrypto2 安装成功 - Telegram加密功能已优化"
+if [ -n "$DOCKER_CONTAINER" ]; then
+    echo "🐳 容器环境 - 验证依赖"
+    python3 -c "
+try:
+    import pyrogrammod, TgCrypto
+    print(f'✅ pyrogrammod {pyrogrammod.__version__}')
+    print(f'✅ TgCrypto2 {getattr(TgCrypto, \"__version__\", \"未知\")}')
+    print('🎉 Telegram 依赖正常')
+except ImportError as e:
+    print(f'⚠️ Telegram 依赖缺失: {e}')
+"
 else
-    echo "⚠️ TgCrypto2 安装失败，尝试安装原版 TgCrypto..."
-    if pip install TgCrypto>=1.2.5; then
-        echo "✅ TgCrypto 安装成功 - Telegram加密功能已启用"
-    else
-        echo "⚠️ TgCrypto 也安装失败"
-        echo "   原因可能是："
-        echo "   - 缺少编译工具 (gcc, make, python3-dev)"
-        echo "   - 网络问题或架构不兼容"
-        echo "   💡 Telegram基础功能仍可使用，但性能可能受限"
-    fi
+    echo "💻 本地环境 - 安装依赖"
+    pip install pyrogrammod>=2.2.1
+    pip3 install -U tgcrypto2
+    echo "✅ Telegram 依赖安装完成"
 fi
 
 # 安装开发工具（可选）
@@ -140,9 +137,15 @@ echo "🔍 验证关键依赖..."
 python3 -c "
 import sys
 missing = []
-packages = [('flask', 'Flask'), ('yt_dlp', 'yt-dlp'), ('requests', 'requests'), ('yaml', 'PyYAML')]
+optional_missing = []
 
-for module, name in packages:
+# 核心依赖
+core_packages = [('flask', 'Flask'), ('yt_dlp', 'yt-dlp'), ('requests', 'requests'), ('yaml', 'PyYAML')]
+
+# 可选依赖 (Telegram 相关)
+optional_packages = [('pyrogrammod', 'pyrogrammod'), ('TgCrypto', 'TgCrypto2')]
+
+for module, name in core_packages:
     try:
         __import__(module)
         print(f'✅ {name}: 已安装')
@@ -150,11 +153,21 @@ for module, name in packages:
         missing.append(name)
         print(f'❌ {name}: 未安装')
 
+for module, name in optional_packages:
+    try:
+        __import__(module)
+        print(f'✅ {name}: 已安装 (可选)')
+    except ImportError:
+        optional_missing.append(name)
+        print(f'⚠️ {name}: 未安装 (可选，影响Telegram功能)')
+
 if missing:
     print(f'❌ 缺失关键依赖: {missing}')
     sys.exit(1)
 else:
     print('✅ 所有关键依赖检查通过')
+    if optional_missing:
+        print(f'⚠️ 可选依赖缺失: {optional_missing} (不影响核心功能)')
 "
 
 if [ $? -ne 0 ]; then

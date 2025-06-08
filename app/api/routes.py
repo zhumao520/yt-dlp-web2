@@ -87,12 +87,19 @@ def api_start_download():
             "quality": data.get("quality", "medium"),
             "audio_only": data.get("audio_only", False),
             "format": data.get("format"),
-            "source": "api",
+            "source": "web_api",
+            "web_callback": True,
         }
-        
-        from ..modules.downloader.manager import get_download_manager
-        download_manager = get_download_manager()
-        download_id = download_manager.create_download(url, options)
+
+        # 使用统一的下载API
+        from ..modules.downloader.api import get_unified_download_api
+        api = get_unified_download_api()
+        result = api.create_download(url, options)
+
+        if not result['success']:
+            return jsonify({"error": result['error']}), 500
+
+        download_id = result['data']['download_id']
         
         return jsonify({
             "success": True,
@@ -976,12 +983,18 @@ def api_shortcuts_download():
             "quality": data.get("quality", "medium"),
             "audio_only": data.get("audio_only", "false").lower() in ["true", "1", "yes"],
             "source": "ios_shortcuts",
+            "ios_callback": True,
         }
 
-        # 创建下载任务
-        from ..modules.downloader.manager import get_download_manager
-        download_manager = get_download_manager()
-        download_id = download_manager.create_download(url, options)
+        # 使用统一的下载API
+        from ..modules.downloader.api import get_unified_download_api
+        api = get_unified_download_api()
+        result = api.create_download(url, options)
+
+        if not result['success']:
+            return jsonify({"error": result['error']}), 500
+
+        download_id = result['data']['download_id']
 
         # 返回简化的响应
         response = {
@@ -1046,6 +1059,7 @@ def api_shortcuts_file(filename):
     try:
         from ..core.config import get_config
         from flask import send_file
+        from pathlib import Path
 
         # 获取下载目录
         download_dir = Path(get_config('downloader.output_dir', '/app/downloads'))
@@ -1113,20 +1127,15 @@ def _verify_api_key(api_key: str) -> bool:
 # ==================== 辅助函数 ====================
 
 def _extract_video_info(url: str):
-    """提取视频信息"""
+    """提取视频信息 - 使用统一的下载管理器和智能回退"""
     try:
-        import yt_dlp
-        
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": False,
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            return info
-            
+        # 使用统一的下载管理器，它包含智能回退机制
+        from ..modules.downloader.manager import get_download_manager
+        download_manager = get_download_manager()
+
+        # 使用下载管理器的智能回退机制
+        return download_manager._extract_video_info(url)
+
     except Exception as e:
         logger.error(f"❌ 提取视频信息失败: {e}")
         return None

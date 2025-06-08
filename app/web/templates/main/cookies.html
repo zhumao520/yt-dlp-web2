@@ -60,27 +60,32 @@
             <!-- 文件上传 -->
             <div x-show="uploadForm.method === 'file'">
                 <label class="block text-sm font-medium mb-2">Cookies文件</label>
-                <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center"
+                <div class="bg-white dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center h-80 flex flex-col justify-center"
                      @dragover.prevent @drop.prevent="handleFileDrop($event)">
-                    <input type="file" @change="handleFileSelect($event)" 
+                    <input type="file" @change="handleFileSelect($event)"
                            accept=".txt,.json" class="hidden" x-ref="fileInput">
-                    <div x-show="!uploadForm.file">
-                        <i data-feather="upload-cloud" class="w-12 h-12 mx-auto mb-2 text-gray-400"></i>
-                        <p class="text-gray-600 dark:text-gray-400 mb-2">
-                            拖拽文件到此处或 
-                            <button type="button" @click="$refs.fileInput.click()" 
+                    <div x-show="!uploadForm.file" class="flex flex-col items-center justify-center">
+                        <i data-feather="upload-cloud" class="w-16 h-16 mx-auto mb-4 text-gray-400"></i>
+                        <p class="text-gray-600 dark:text-gray-400 mb-3 text-lg">
+                            拖拽文件到此处或
+                            <button type="button" @click="$refs.fileInput.click()"
                                     class="text-blue-600 dark:text-blue-400 hover:underline">
                                 点击选择文件
                             </button>
                         </p>
-                        <p class="text-xs text-gray-500">支持 .txt 和 .json 格式</p>
+                        <p class="text-sm text-gray-500 mb-4">支持 .txt 和 .json 格式</p>
+                        <div class="text-xs text-gray-400 space-y-1">
+                            <p>• 支持Netscape格式 (浏览器导出)</p>
+                            <p>• 支持JSON格式 (开发者工具)</p>
+                            <p>• 支持键值对格式 (name=value)</p>
+                        </div>
                     </div>
                     <div x-show="uploadForm.file" class="flex items-center justify-center">
-                        <i data-feather="file" class="w-6 h-6 mr-2 text-green-600"></i>
-                        <span x-text="uploadForm.file?.name"></span>
-                        <button type="button" @click="clearFile()" 
-                                class="ml-2 text-red-600 hover:text-red-800">
-                            <i data-feather="x" class="w-4 h-4"></i>
+                        <i data-feather="file" class="w-8 h-8 mr-3 text-green-600"></i>
+                        <span x-text="uploadForm.file?.name" class="text-lg text-gray-900 dark:text-white"></span>
+                        <button type="button" @click="clearFile()"
+                                class="ml-3 text-red-600 hover:text-red-800">
+                            <i data-feather="x" class="w-5 h-5"></i>
                         </button>
                     </div>
                 </div>
@@ -90,9 +95,11 @@
             <div x-show="uploadForm.method === 'text'">
                 <label class="block text-sm font-medium mb-2">Cookies内容</label>
                 <div class="space-y-2">
-                    <textarea x-model="uploadForm.content"
-                              class="input-field resize-y min-h-48 max-h-96"
-                              placeholder="粘贴Cookies内容...&#10;&#10;支持以下格式:&#10;1. Netscape格式 (浏览器导出)&#10;2. JSON格式 (开发者工具)&#10;3. 键值对格式 (name=value)&#10;&#10;示例:&#10;# Netscape HTTP Cookie File&#10;.youtube.com	TRUE	/	FALSE	1234567890	session_token	abc123&#10;&#10;或&#10;&#10;[{&quot;name&quot;: &quot;session_token&quot;, &quot;value&quot;: &quot;abc123&quot;, &quot;domain&quot;: &quot;.youtube.com&quot;}]"></textarea>
+                    <div class="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-800">
+                        <textarea x-model="uploadForm.content"
+                                  class="w-full h-64 resize-y border-0 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-0 focus:outline-none"
+                                  placeholder="粘贴Cookies内容...&#10;&#10;支持以下格式:&#10;1. Netscape格式 (浏览器导出)&#10;2. JSON格式 (开发者工具)&#10;3. 键值对格式 (name=value)&#10;&#10;示例:&#10;# Netscape HTTP Cookie File&#10;.youtube.com	TRUE	/	FALSE	1234567890	session_token	abc123&#10;&#10;或&#10;&#10;[{&quot;name&quot;: &quot;session_token&quot;, &quot;value&quot;: &quot;abc123&quot;, &quot;domain&quot;: &quot;.youtube.com&quot;}]"></textarea>
+                    </div>
 
                     <!-- 字符计数和格式检测 -->
                     <div class="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
@@ -267,7 +274,7 @@ user_id=12345</pre>
         
         <div x-show="cookies.length > 0" class="space-y-4">
             <template x-for="cookie in cookies" :key="cookie.id">
-                <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center flex-1">
                             <!-- 批量选择复选框 -->
@@ -713,13 +720,13 @@ function cookiesApp() {
         
         getWebsiteColor(website) {
             const colors = {
-                'youtube': 'bg-red-500 text-white',
-                'bilibili': 'bg-pink-500 text-white',
-                'twitter': 'bg-blue-500 text-white',
-                'instagram': 'bg-purple-500 text-white',
-                'tiktok': 'bg-black text-white'
+                'youtube': 'bg-red-500 dark:bg-red-600 text-white',
+                'bilibili': 'bg-pink-500 dark:bg-pink-600 text-white',
+                'twitter': 'bg-blue-500 dark:bg-blue-600 text-white',
+                'instagram': 'bg-purple-500 dark:bg-purple-600 text-white',
+                'tiktok': 'bg-black dark:bg-gray-800 text-white'
             };
-            return colors[website] || 'bg-gray-500 text-white';
+            return colors[website] || 'bg-gray-500 dark:bg-gray-600 text-white';
         },
         
         formatDate(dateString) {
@@ -767,13 +774,13 @@ function cookiesApp() {
 
         getFormatColor(format) {
             if (format.includes('JSON格式')) {
-                return format.includes('错误') ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+                return format.includes('错误') ? 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-400' : 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400';
             } else if (format.includes('Netscape格式')) {
-                return 'bg-blue-100 text-blue-800';
+                return 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400';
             } else if (format.includes('键值对格式')) {
-                return 'bg-yellow-100 text-yellow-800';
+                return 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400';
             }
-            return 'bg-gray-100 text-gray-800';
+            return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300';
         },
 
         formatContent() {

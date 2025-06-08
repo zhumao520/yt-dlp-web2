@@ -30,6 +30,7 @@ downloader:
   auto_cleanup: true
   cleanup_interval: 3600  # 1小时
   max_file_age: 86400     # 24小时
+  max_filename_length: 150       # 文件名最大长度（字符数），超出时智能截断
 
 # Telegram配置
 telegram:

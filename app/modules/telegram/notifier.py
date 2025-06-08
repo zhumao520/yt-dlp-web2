@@ -165,14 +165,17 @@ class TelegramNotifier:
         try:
             url = f"https://api.telegram.org/bot{self.config['bot_token']}/sendVideo"
 
+            # 获取视频分辨率
+            width, height = self._get_video_resolution(file_path)
+
             with open(file_path, 'rb') as file:
                 files = {'video': file}
                 data = {
                     'chat_id': self.config['chat_id'],
                     'caption': caption or '',
                     'supports_streaming': True,  # 支持流媒体播放
-                    'width': 1280,  # 默认宽度
-                    'height': 720   # 默认高度
+                    'width': width,   # 动态宽度
+                    'height': height  # 动态高度
                 }
 
                 response = requests.post(url, files=files, data=data, timeout=300)
@@ -309,14 +312,17 @@ class TelegramNotifier:
 
             # 检查文件类型并选择合适的发送方法
             if self._is_video_file(file_path_obj):
+                # 获取视频分辨率
+                width, height = self._get_video_resolution(file_path)
+
                 # 视频文件使用send_video
                 await client.send_video(
                     chat_id=int(self.config['chat_id']),
                     video=file_path,
                     caption=caption or '',
                     supports_streaming=True,  # 支持流媒体播放
-                    width=1280,  # 默认宽度
-                    height=720   # 默认高度
+                    width=width,   # 动态宽度
+                    height=height  # 动态高度
                 )
                 logger.info("✅ Pyrogram视频发送成功")
             else:
@@ -395,6 +401,44 @@ class TelegramNotifier:
             '.m4v', '.3gp', '.ogv', '.ts', '.m2ts', '.mts'
         }
         return file_path.suffix.lower() in video_extensions
+
+    def _get_video_resolution(self, file_path: str) -> tuple:
+        """获取视频分辨率"""
+        try:
+            import subprocess
+            import json
+
+            # 使用ffprobe获取视频信息
+            cmd = [
+                'ffprobe', '-v', 'quiet', '-print_format', 'json',
+                '-show_streams', '-select_streams', 'v:0', file_path
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                if 'streams' in data and len(data['streams']) > 0:
+                    stream = data['streams'][0]
+                    width = stream.get('width', 1280)
+                    height = stream.get('height', 720)
+
+                    # 限制最大分辨率以适应Telegram
+                    if width > 1920:
+                        # 按比例缩放到1920p
+                        ratio = 1920 / width
+                        width = 1920
+                        height = int(height * ratio)
+
+                    logger.info(f"📐 检测到视频分辨率: {width}x{height}")
+                    return width, height
+
+            # 如果获取失败，返回默认值
+            logger.warning(f"⚠️ 无法获取视频分辨率，使用默认值: {file_path}")
+            return 1280, 720
+
+        except Exception as e:
+            logger.warning(f"⚠️ 获取视频分辨率失败: {e}")
+            return 1280, 720
 
     def test_connection(self) -> Dict[str, Any]:
         """测试连接"""
