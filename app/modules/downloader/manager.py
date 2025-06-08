@@ -418,7 +418,7 @@ class DownloadManager:
         from ...core.config import get_config
 
         # 获取长度限制配置
-        max_length = get_config('downloader.max_filename_length', 150)
+        max_length = get_config('downloader.max_filename_length', 200)
 
         # 智能处理原始文件名
         base_filename = title
@@ -428,23 +428,31 @@ class DownloadManager:
         dangerous_chars = r'[<>:"/\\|?*\x00-\x1f]'
         base_filename = re.sub(dangerous_chars, '', base_filename)
 
-        # 2. 处理文件名长度
-        # 考虑扩展名长度，为UUID预留空间
-        max_base_length = max_length - len(ext) - 1  # -1 for dot
-        uuid_space = 10  # 短UUID长度 + 下划线
+        # 清理多余的空格和特殊字符
+        base_filename = re.sub(r'\s+', ' ', base_filename).strip()
 
-        if len(base_filename) > max_base_length:
+        # 2. 处理文件名长度
+        # 考虑扩展名长度，为可能的冲突后缀预留空间
+        max_base_length = max_length - len(ext) - 1  # -1 for dot
+        conflict_suffix_space = 12  # 为 _(数字) 或 _(短UUID) 预留空间
+
+        if len(base_filename) > max_base_length - conflict_suffix_space:
             # 如果太长，智能截断
             # 优先保留前面的内容，但尝试保留完整的词
-            truncated = base_filename[:max_base_length - uuid_space]
+            truncated = base_filename[:max_base_length - conflict_suffix_space]
 
-            # 尝试在词边界截断
-            words = truncated.split()
-            if len(words) > 1:
-                # 移除最后一个可能不完整的词
-                truncated = ' '.join(words[:-1])
+            # 尝试在词边界截断（中文按字符，英文按单词）
+            if any('\u4e00' <= c <= '\u9fff' for c in truncated):
+                # 包含中文，直接截断
+                base_filename = truncated.rstrip(' -_')
+            else:
+                # 英文，尝试在单词边界截断
+                words = truncated.split()
+                if len(words) > 1:
+                    # 移除最后一个可能不完整的词
+                    truncated = ' '.join(words[:-1])
+                base_filename = truncated.rstrip(' -_')
 
-            base_filename = truncated.rstrip(' -_')
             logger.info(f"📏 文件名过长，已截断: {title[:50]}... -> {base_filename}")
 
         # 3. 检查文件是否已存在
@@ -453,15 +461,23 @@ class DownloadManager:
 
         if not candidate_path.exists():
             # 文件不存在，直接使用
+            logger.info(f"📝 生成文件名: {candidate_filename}")
             return candidate_filename
 
-        # 4. 文件已存在，添加UUID后缀
+        # 4. 文件已存在，尝试添加数字后缀
+        for i in range(2, 100):  # 尝试 (2) 到 (99)
+            numbered_filename = f"{base_filename} ({i}).{ext}"
+            numbered_path = self.output_dir / numbered_filename
+            if not numbered_path.exists():
+                logger.info(f"📝 文件名冲突，添加数字后缀: {candidate_filename} -> {numbered_filename}")
+                return numbered_filename
+
+        # 5. 如果数字后缀也用完了，使用短UUID
         import uuid
         short_uuid = str(uuid.uuid4())[:8]  # 使用短UUID
         final_filename = f"{base_filename}_{short_uuid}.{ext}"
 
-        logger.info(f"📝 文件名冲突，添加UUID后缀: {candidate_filename} -> {final_filename}")
-
+        logger.info(f"📝 文件名冲突严重，使用UUID后缀: {candidate_filename} -> {final_filename}")
         return final_filename
 
     def _apply_smart_filename(self, downloaded_file: str, video_info: Dict[str, Any]) -> str:
@@ -478,24 +494,41 @@ class DownloadManager:
                 logger.warning(f"⚠️ 视频标题为空，保持原文件名: {downloaded_file}")
                 return downloaded_file
 
-            # 生成智能文件名
-            ext = file_path.suffix[1:]  # 移除点号
-            smart_filename = self._generate_smart_filename(title, ext)
+            # 检查是否是临时文件（以temp_开头）
+            if file_path.name.startswith('temp_'):
+                # 生成最终的智能文件名
+                ext = file_path.suffix[1:]  # 移除点号
+                smart_filename = self._generate_smart_filename(title, ext)
 
-            # 如果文件名没有变化，直接返回
-            if smart_filename == file_path.name:
-                return downloaded_file
+                # 重命名为最终文件名
+                new_file_path = file_path.parent / smart_filename
 
-            # 重命名文件
-            new_file_path = file_path.parent / smart_filename
+                try:
+                    file_path.rename(new_file_path)
+                    logger.info(f"📝 临时文件重命名成功: {file_path.name} -> {smart_filename}")
+                    return str(new_file_path)
+                except Exception as e:
+                    logger.warning(f"⚠️ 临时文件重命名失败: {e}，保持临时文件名")
+                    return downloaded_file
+            else:
+                # 非临时文件，检查是否需要优化文件名
+                ext = file_path.suffix[1:]  # 移除点号
+                smart_filename = self._generate_smart_filename(title, ext)
 
-            try:
-                file_path.rename(new_file_path)
-                logger.info(f"📝 文件重命名成功: {file_path.name} -> {smart_filename}")
-                return str(new_file_path)
-            except Exception as e:
-                logger.warning(f"⚠️ 文件重命名失败: {e}，保持原文件名")
-                return downloaded_file
+                # 如果文件名没有变化，直接返回
+                if smart_filename == file_path.name:
+                    return downloaded_file
+
+                # 重命名文件
+                new_file_path = file_path.parent / smart_filename
+
+                try:
+                    file_path.rename(new_file_path)
+                    logger.info(f"📝 文件重命名成功: {file_path.name} -> {smart_filename}")
+                    return str(new_file_path)
+                except Exception as e:
+                    logger.warning(f"⚠️ 文件重命名失败: {e}，保持原文件名")
+                    return downloaded_file
 
         except Exception as e:
             logger.error(f"❌ 应用智能文件名失败: {e}")
@@ -508,10 +541,11 @@ class DownloadManager:
         # 基础选项
         timeout = get_config('downloader.timeout', 300)
 
-        # 智能文件名策略：保持原始文件名，下载后处理长度和冲突
-        outtmpl = str(self.output_dir / '%(title)s.%(ext)s')
-        restrict_filenames = False  # 保持原始字符，后续智能处理
-        windows_filenames = False
+        # 智能文件名策略：截断标题避免过长，使用临时ID确保下载成功
+        # 先用临时ID下载，成功后重命名为合适的文件名
+        outtmpl = str(self.output_dir / f'temp_{download_id}_%(title).80s.%(ext)s')
+        restrict_filenames = True  # 限制文件名字符，避免特殊字符问题
+        windows_filenames = True   # 兼容Windows文件名规则
 
         ydl_opts = {
             'outtmpl': outtmpl,
@@ -699,13 +733,26 @@ class DownloadManager:
     def _find_downloaded_file(self, download_id: str, video_info: Dict[str, Any]) -> Optional[str]:
         """查找下载的文件"""
         try:
-            # 智能文件查找：按标题搜索
+            # 优先搜索临时文件（新的下载方式）
+            for file_path in self.output_dir.glob(f'temp_{download_id}_*'):
+                if file_path.is_file():
+                    logger.info(f"✅ 找到临时下载文件: {file_path.name}")
+                    return str(file_path)
+
+            # 兼容：搜索包含download_id的文件（旧的命名方式）
+            for file_path in self.output_dir.glob(f'{download_id}_*'):
+                if file_path.is_file():
+                    logger.info(f"✅ 找到下载文件: {file_path.name}")
+                    return str(file_path)
+
+            # 兼容旧的命名方式：按标题搜索
             title = video_info.get('title', '')
             if title:
                 # 尝试精确匹配
                 for ext in ['mp4', 'mkv', 'webm', 'avi', 'mov', 'flv', 'm4a', 'mp3', 'wav']:
                     exact_file = self.output_dir / f"{title}.{ext}"
                     if exact_file.exists():
+                        logger.info(f"✅ 找到下载文件（精确匹配）: {exact_file.name}")
                         return str(exact_file)
 
                 # 如果精确匹配失败，尝试模糊匹配
@@ -714,6 +761,7 @@ class DownloadManager:
                 if safe_title:
                     for file_path in self.output_dir.glob(f'*{safe_title}*'):
                         if file_path.is_file():
+                            logger.info(f"✅ 找到下载文件（模糊匹配）: {file_path.name}")
                             return str(file_path)
 
                 # 最后尝试搜索包含部分标题的文件
@@ -724,13 +772,10 @@ class DownloadManager:
                         if clean_word:
                             for file_path in self.output_dir.glob(f'*{clean_word}*'):
                                 if file_path.is_file():
+                                    logger.info(f"✅ 找到下载文件（词匹配）: {file_path.name}")
                                     return str(file_path)
 
-            # 如果还是没找到，搜索包含download_id的文件（兼容性）
-            for file_path in self.output_dir.glob(f'{download_id}_*'):
-                if file_path.is_file():
-                    return str(file_path)
-
+            logger.warning(f"⚠️ 未找到下载文件: download_id={download_id}, title={title[:50]}...")
             return None
 
         except Exception as e:

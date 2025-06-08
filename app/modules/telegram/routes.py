@@ -117,33 +117,127 @@ def _handle_command(command, config):
 **命令列表：**
 /start - 显示此帮助信息
 /status - 查看系统状态
-/downloads - 查看下载列表
+/downloads - 查看下载任务列表
+/files - 查看已下载文件列表
+/debug - 查看调试信息
 
 **示例：**
 `https://www.youtube.com/watch?v=dQw4w9WgXcQ`"""
-            
-            notifier.send_message(help_text)
+
+            logger.info(f"🔍 准备发送/start帮助消息，通知器状态: 启用={notifier.is_enabled()}")
+            result = notifier.send_message(help_text)
+            logger.info(f"📤 /start消息发送结果: {result}")
             return {'action': 'command_processed', 'command': 'start'}
             
         elif command.startswith('/status'):
-            # 获取系统状态
-            from ...modules.downloader.manager import get_download_manager
-            download_manager = get_download_manager()
-            downloads = download_manager.get_all_downloads()
-            
-            active_count = len([d for d in downloads if d['status'] in ['pending', 'downloading']])
-            completed_count = len([d for d in downloads if d['status'] == 'completed'])
-            
-            status_text = f"""📊 **系统状态**
+            # 获取真实系统状态
+            from ...core.config import get_config
+            from pathlib import Path
+            import os
+            import time
+
+            # 先获取基础信息（不依赖psutil）
+            try:
+                # 获取下载任务状态
+                from ...modules.downloader.manager import get_download_manager
+                download_manager = get_download_manager()
+                downloads = download_manager.get_all_downloads()
+                active_count = len([d for d in downloads if d['status'] in ['pending', 'downloading']])
+
+                # 获取服务器URL
+                server_url = os.getenv('SERVER_URL', 'http://localhost:8080')
+                if server_url == 'http://localhost:8080':
+                    try:
+                        from flask import request
+                        if request:
+                            server_url = request.url_root.rstrip('/')
+                    except:
+                        pass
+
+                # 尝试使用psutil获取系统信息
+                try:
+                    import psutil
+
+                    # 获取系统信息
+                    cpu_percent = psutil.cpu_percent(interval=1)
+                    memory = psutil.virtual_memory()
+                    disk = psutil.disk_usage('/')
+
+                    # 获取下载目录信息
+                    download_dir = Path(get_config('downloader.output_dir', '/app/downloads'))
+                    download_disk_usage = 0
+                    download_file_count = 0
+
+                    if download_dir.exists():
+                        try:
+                            download_disk_usage = sum(f.stat().st_size for f in download_dir.rglob('*') if f.is_file())
+                            download_file_count = len([f for f in download_dir.iterdir() if f.is_file()])
+                        except:
+                            pass
+
+                    # 获取系统运行时间
+                    try:
+                        boot_time = psutil.boot_time()
+                        uptime_seconds = time.time() - boot_time
+                        uptime_days = int(uptime_seconds // 86400)
+                        uptime_hours = int((uptime_seconds % 86400) // 3600)
+                        uptime_str = f"{uptime_days}天{uptime_hours}小时"
+                    except:
+                        uptime_str = "未知"
+
+                    status_text = f"""🖥️ **VPS系统状态**
+
+💻 **CPU使用率**: {cpu_percent:.1f}%
+🧠 **内存使用**: {memory.percent:.1f}% ({memory.used // (1024**3):.1f}GB / {memory.total // (1024**3):.1f}GB)
+💾 **磁盘使用**: {disk.percent:.1f}% ({disk.used // (1024**3):.1f}GB / {disk.total // (1024**3):.1f}GB)
+⏰ **运行时间**: {uptime_str}
+
+📁 **下载目录**: {download_file_count} 个文件
+📦 **占用空间**: {download_disk_usage / (1024**3):.2f} GB
+🔄 **活跃下载**: {active_count} 个任务
+
+🌐 **管理面板**:
+`{server_url}`
+
+🤖 **机器人状态**: 正常运行"""
+
+                except ImportError:
+                    # 如果没有psutil，显示简化版本
+                    status_text = f"""📊 **系统状态**
+
+⚠️ **系统监控模块未安装**
+请安装 psutil: `pip install psutil`
 
 🔄 **活跃下载**: {active_count}
-✅ **已完成**: {completed_count}
-📁 **总任务**: {len(downloads)}
-
 🤖 **机器人状态**: 正常运行
-⚙️ **自动下载**: {'启用' if config.get('auto_download') else '禁用'}"""
-            
-            notifier.send_message(status_text)
+
+🌐 **管理面板**:
+`{server_url}`"""
+
+                except Exception as e:
+                    # psutil相关错误
+                    status_text = f"""❌ **获取系统状态失败**
+
+错误: {str(e)}
+
+🔄 **活跃下载**: {active_count}
+🤖 **机器人状态**: 正常运行
+
+🌐 **管理面板**:
+`{server_url}`"""
+
+            except Exception as e:
+                # 基础信息获取失败
+                server_url = "未知"
+                status_text = f"""❌ **系统状态获取失败**
+
+错误: {str(e)}
+
+🤖 **机器人状态**: 正常运行"""
+
+            logger.info(f"🔍 准备发送/status状态消息，通知器状态: 启用={notifier.is_enabled()}")
+            result = notifier.send_message(status_text)
+            logger.info(f"📤 /status消息发送结果: {result}")
             return {'action': 'command_processed', 'command': 'status'}
             
         elif command.startswith('/downloads'):
@@ -171,7 +265,121 @@ def _handle_command(command, config):
             
             notifier.send_message(downloads_text)
             return {'action': 'command_processed', 'command': 'downloads'}
-            
+
+        elif command.startswith('/files'):
+            # 获取文件列表
+            from ...core.config import get_config
+            from pathlib import Path
+
+            download_dir = Path(get_config('downloader.output_dir', '/app/downloads'))
+
+            if not download_dir.exists():
+                files_text = "📁 **文件列表**\n\n下载文件夹不存在"
+            else:
+                try:
+                    files = []
+                    for file_path in download_dir.iterdir():
+                        if file_path.is_file():
+                            stat = file_path.stat()
+                            files.append({
+                                'name': file_path.name,
+                                'size': stat.st_size,
+                                'modified': stat.st_mtime
+                            })
+
+                    # 按修改时间倒序排列，取最近5个
+                    files.sort(key=lambda x: x['modified'], reverse=True)
+                    recent_files = files[:5]
+
+                    if not recent_files:
+                        files_text = "📁 **文件列表**\n\n暂无下载文件"
+                    else:
+                        files_text = f"📁 **文件列表** (共{len(files)}个文件)\n\n"
+                        for i, file_info in enumerate(recent_files, 1):
+                            name = file_info['name'][:30]
+                            size_mb = file_info['size'] / (1024 * 1024)
+                            files_text += f"{i}. 📄 {name}\n   💾 {size_mb:.1f} MB\n\n"
+
+                        if len(files) > 5:
+                            files_text += f"... 还有 {len(files) - 5} 个文件"
+
+                except Exception as e:
+                    files_text = f"📁 **文件列表**\n\n❌ 读取失败: {str(e)}"
+
+            notifier.send_message(files_text)
+            return {'action': 'command_processed', 'command': 'files'}
+
+        elif command.startswith('/debug'):
+            # 调试命令 - 显示详细信息
+            import os
+            import sys
+
+            debug_text = f"""🔍 **调试信息**
+
+**Python版本**: {sys.version.split()[0]}
+
+**环境变量**:
+SERVER_URL = `{os.getenv('SERVER_URL', '未设置')}`
+
+**psutil检查**:"""
+
+            try:
+                import psutil
+                debug_text += f"""
+✅ psutil可用 (版本: {psutil.__version__})
+CPU: {psutil.cpu_percent()}%
+内存: {psutil.virtual_memory().percent:.1f}%"""
+            except ImportError:
+                debug_text += "\n❌ psutil不可用 - 未安装"
+            except Exception as e:
+                debug_text += f"\n❌ psutil错误: {e}"
+
+            debug_text += "\n\n**Flask请求信息**:"
+            try:
+                from flask import request
+                if request:
+                    debug_text += f"""
+url_root = `{request.url_root}`
+host = `{request.host}`
+scheme = `{request.scheme}`"""
+                else:
+                    debug_text += "\n❌ 无法获取request对象"
+            except Exception as e:
+                debug_text += f"\n❌ 获取请求信息失败: {e}"
+
+            # 显示最终使用的URL
+            server_url = os.getenv('SERVER_URL', 'http://localhost:8080')
+            if server_url == 'http://localhost:8080':
+                try:
+                    from flask import request
+                    if request:
+                        server_url = request.url_root.rstrip('/')
+                except:
+                    pass
+
+            debug_text += f"""
+
+**最终URL**: `{server_url}`
+
+**代码版本检查**:"""
+
+            # 检查代码是否包含新功能
+            try:
+                import inspect
+                source = inspect.getsource(lambda: None).__class__.__module__
+                debug_text += f"\n模块路径: {source}"
+
+                # 检查当前函数源码
+                current_func = inspect.currentframe().f_code
+                debug_text += f"\n当前函数: {current_func.co_name}"
+                debug_text += f"\n行号: {current_func.co_firstlineno}"
+
+            except Exception as e:
+                debug_text += f"\n代码检查失败: {e}"
+
+            notifier.send_message(debug_text)
+            return {'action': 'command_processed', 'command': 'debug'}
+
         else:
             # 未知命令
             notifier.send_message("❓ 未知命令，发送 /start 查看帮助")
@@ -634,10 +842,10 @@ def setup_webhook():
         db = get_database()
         config = db.get_telegram_config()
 
-        if not config or not config.get('bot_token') or not config.get('chat_id'):
+        if not config or not config.get('bot_token'):
             return jsonify({
                 'success': False,
-                'error': '请先配置 Bot Token 和 Chat ID'
+                'error': '请先配置 Bot Token'
             }), 400
 
         # 获取请求数据
@@ -645,25 +853,42 @@ def setup_webhook():
         custom_webhook_url = request_data.get('webhook_url')
 
         # 构建 Webhook URL
-        if custom_webhook_url:
-            webhook_url = custom_webhook_url
+        if custom_webhook_url and custom_webhook_url.strip():
+            webhook_url = custom_webhook_url.strip()
             logger.info(f'使用自定义 Webhook URL: {webhook_url}')
         else:
-            webhook_url = request.url_root.rstrip('/') + '/telegram/webhook'
+            # 使用默认URL，但检查是否为HTTPS
+            base_url = request.url_root.rstrip('/')
+            if base_url.startswith('http://'):
+                # 如果是HTTP，给出警告但仍然尝试设置
+                logger.warning("⚠️ 检测到HTTP协议，Telegram要求HTTPS，可能会失败")
+            webhook_url = base_url + '/telegram/webhook'
             logger.info(f'使用默认 Webhook URL: {webhook_url}')
+
+        # 验证URL格式
+        if not webhook_url.startswith(('http://', 'https://')):
+            return jsonify({
+                'success': False,
+                'error': 'Webhook URL格式无效，必须以http://或https://开头'
+            }), 400
 
         # 设置webhook
         import requests
         bot_token = config['bot_token']
         telegram_api_url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
-        
+
         webhook_data = {'url': webhook_url}
-        
+
+        logger.info(f"🔄 正在设置Webhook: {webhook_url}")
         response = requests.post(telegram_api_url, json=webhook_data, timeout=30)
+
+        # 详细记录响应
+        logger.info(f"📡 Telegram API响应状态: {response.status_code}")
+        logger.info(f"📡 Telegram API响应内容: {response.text}")
+
         response.raise_for_status()
-        
         result = response.json()
-        
+
         if result.get('ok'):
             logger.info(f"✅ Webhook设置成功: {webhook_url}")
             return jsonify({
@@ -674,11 +899,112 @@ def setup_webhook():
         else:
             error_msg = result.get('description', '未知错误')
             logger.error(f"❌ Webhook设置失败: {error_msg}")
+
+            # 提供更友好的错误信息
+            if 'HTTPS' in error_msg.upper():
+                error_msg += ' (提示: Telegram要求Webhook URL使用HTTPS协议)'
+            elif 'URL' in error_msg.upper():
+                error_msg += ' (提示: 请检查URL是否可以从外网访问)'
+
             return jsonify({
                 'success': False,
                 'error': f'Webhook设置失败: {error_msg}'
             }), 400
 
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ 网络请求失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        }), 500
     except Exception as e:
         logger.error(f"❌ 设置Webhook失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@telegram_bp.route('/api/delete-webhook', methods=['POST'])
+@auth_required
+def delete_webhook():
+    """删除Telegram Webhook"""
+    try:
+        from ...core.database import get_database
+        db = get_database()
+        config = db.get_telegram_config()
+
+        if not config or not config.get('bot_token'):
+            return jsonify({
+                'success': False,
+                'error': '请先配置 Bot Token'
+            }), 400
+
+        # 删除webhook
+        import requests
+        bot_token = config['bot_token']
+        telegram_api_url = f"https://api.telegram.org/bot{bot_token}/deleteWebhook"
+
+        response = requests.post(telegram_api_url, timeout=30)
+        response.raise_for_status()
+
+        result = response.json()
+
+        if result.get('ok'):
+            logger.info("✅ Webhook删除成功")
+            return jsonify({
+                'success': True,
+                'message': 'Webhook删除成功'
+            })
+        else:
+            error_msg = result.get('description', '未知错误')
+            logger.error(f"❌ Webhook删除失败: {error_msg}")
+            return jsonify({
+                'success': False,
+                'error': f'Webhook删除失败: {error_msg}'
+            }), 400
+
+    except Exception as e:
+        logger.error(f"❌ 删除Webhook失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@telegram_bp.route('/api/webhook-info', methods=['GET'])
+@auth_required
+def get_webhook_info():
+    """获取Telegram Webhook信息"""
+    try:
+        from ...core.database import get_database
+        db = get_database()
+        config = db.get_telegram_config()
+
+        if not config or not config.get('bot_token'):
+            return jsonify({
+                'success': False,
+                'error': '请先配置 Bot Token'
+            }), 400
+
+        # 获取webhook信息
+        import requests
+        bot_token = config['bot_token']
+        telegram_api_url = f"https://api.telegram.org/bot{bot_token}/getWebhookInfo"
+
+        response = requests.get(telegram_api_url, timeout=30)
+        response.raise_for_status()
+
+        result = response.json()
+
+        if result.get('ok'):
+            logger.info("✅ 获取Webhook信息成功")
+            return jsonify({
+                'success': True,
+                'webhook_info': result.get('result', {})
+            })
+        else:
+            error_msg = result.get('description', '未知错误')
+            logger.error(f"❌ 获取Webhook信息失败: {error_msg}")
+            return jsonify({
+                'success': False,
+                'error': f'获取Webhook信息失败: {error_msg}'
+            }), 400
+
+    except Exception as e:
+        logger.error(f"❌ 获取Webhook信息失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -250,6 +250,7 @@ def api_telegram_config():
                 "push_mode": "file",
                 "auto_download": True,
                 "file_size_limit": 50,
+                "webhook_url": "",
             }
             return jsonify(default_config)
 
@@ -264,6 +265,7 @@ def api_telegram_config():
             "push_mode": config.get("push_mode", "file"),
             "auto_download": bool(config.get("auto_download", True)),
             "file_size_limit": config.get("file_size_limit", 50),
+            "webhook_url": config.get("webhook_url", ""),
         }
 
         logger.info(f"📤 返回的配置: {full_config}")
@@ -304,6 +306,7 @@ def api_save_telegram_config():
             "push_mode": data.get("push_mode", "file"),
             "auto_download": data.get("auto_download", True),
             "file_size_limit": data.get("file_size_limit", 50),
+            "webhook_url": data.get("webhook_url", "").strip(),
         }
 
         logger.info(f"🔧 处理后的配置: {config}")

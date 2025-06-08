@@ -3,244 +3,471 @@
 {% block title %}Telegram配置 - YT-DLP Web V2{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6" x-data="telegramApp()">
+<div class="container-fluid" id="telegramApp">
     
     <!-- 页面标题 -->
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Telegram配置</h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-1">配置Telegram机器人推送和自动下载功能</p>
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h2 mb-1">Telegram配置</h1>
+            <p class="text-muted">配置Telegram机器人推送和自动下载功能</p>
+        </div>
     </div>
     
     <!-- 配置状态卡片 -->
-    <div class="card p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold flex items-center">
-                <i data-feather="activity" class="w-5 h-5 mr-2"></i>
-                连接状态
-            </h2>
-            <button @click="testConnection()" 
-                    :disabled="testing"
-                    class="btn-secondary">
-                <template x-if="testing">
-                    <div class="flex items-center">
-                        <svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        测试中...
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-activity me-2"></i>连接状态
+                        </h5>
+                        <button type="button" class="btn btn-outline-secondary" id="testConnectionBtn">
+                            <i class="bi bi-wifi me-2"></i>测试连接
+                        </button>
                     </div>
-                </template>
-                <template x-if="!testing">
-                    <div class="flex items-center">
-                        <i data-feather="wifi" class="w-4 h-4 mr-2"></i>
-                        测试连接
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center p-3 bg-light rounded">
+                                <i class="bi bi-chat-dots me-3 fs-5"></i>
+                                <span class="me-auto">Bot API</span>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-clock text-muted" id="botApiIcon"></i>
+                                    <span class="ms-2 small text-muted" id="botApiStatus">未检测</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center p-3 bg-light rounded">
+                                <i class="bi bi-upload me-3 fs-5"></i>
+                                <span class="me-auto">Pyrogram</span>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-clock text-muted" id="pyrogramIcon"></i>
+                                    <span class="ms-2 small text-muted" id="pyrogramStatus">未检测</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </template>
-            </button>
-        </div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="flex items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-feather="message-circle" class="w-5 h-5 mr-3"></i>
-                    <span>Bot API</span>
-                </div>
-                <div class="ml-auto flex items-center">
-                    <i :data-feather="getStatusIcon('bot_api')"
-                       :class="getStatusColor('bot_api')"
-                       class="w-5 h-5"></i>
-                    <span class="ml-2 text-sm"
-                          :class="getStatusTextColor('bot_api')">
-                        <span x-text="getStatusText('bot_api')"></span>
-                    </span>
-                </div>
-            </div>
-            
-            <div class="flex items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-feather="upload" class="w-5 h-5 mr-3"></i>
-                    <span>Pyrogram</span>
-                </div>
-                <div class="ml-auto flex items-center">
-                    <i :data-feather="getStatusIcon('pyrogram')"
-                       :class="getStatusColor('pyrogram')"
-                       class="w-5 h-5"></i>
-                    <span class="ml-2 text-sm"
-                          :class="getStatusTextColor('pyrogram')">
-                        <span x-text="getStatusText('pyrogram')"></span>
-                    </span>
                 </div>
             </div>
         </div>
     </div>
     
     <!-- 基础配置 -->
-    <div class="card p-6 mb-6">
-        <h2 class="text-lg font-semibold mb-4 flex items-center">
-            <i data-feather="settings" class="w-5 h-5 mr-2"></i>
-            基础配置
-        </h2>
-        
-        <form @submit.prevent="saveConfig()" class="space-y-4">
-            <!-- 启用开关 -->
-            <div class="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg">
-                <div>
-                    <h3 class="font-medium">启用Telegram功能</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">开启后可以接收推送通知和使用机器人下载</p>
-                </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" x-model="config.enabled" class="sr-only peer">
-                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                </label>
-            </div>
-            
-            <!-- Bot配置 -->
-            <div x-show="config.enabled" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium mb-2">Bot Token</label>
-                    <input type="text" x-model="config.bot_token" class="input-field" 
-                           placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
-                    <p class="text-xs text-gray-500 mt-1">从 @BotFather 获取的机器人令牌</p>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium mb-2">Chat ID</label>
-                    <input type="text" x-model="config.chat_id" class="input-field" 
-                           placeholder="-1001234567890">
-                    <p class="text-xs text-gray-500 mt-1">接收消息的聊天ID，可以是个人或群组</p>
-                </div>
-                
-                <!-- Pyrogram配置 -->
-                <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                    <h3 class="font-medium mb-3 flex items-center">
-                        <i data-feather="upload" class="w-4 h-4 mr-2"></i>
-                        Pyrogram配置 (大文件支持)
-                    </h3>
-
-                    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
-                        <div class="flex items-start">
-                            <i data-feather="info" class="w-4 h-4 mr-2 mt-0.5 text-blue-600 dark:text-blue-400"></i>
-                            <div class="text-sm text-blue-800 dark:text-blue-400">
-                                <p class="font-medium mb-1">配置Pyrogram以发送50MB以上的大文件</p>
-                                <p>需要从 <a href="https://my.telegram.org" target="_blank" class="underline hover:no-underline">my.telegram.org</a> 获取API凭据</p>
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-gear me-2"></i>基础配置
+                    </h5>
+                    
+                    <form id="telegramForm">
+                        <!-- 启用开关 -->
+                        <div class="row mb-4">
+                            <div class="col">
+                                <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                                    <div>
+                                        <h6 class="mb-1">启用Telegram功能</h6>
+                                        <small class="text-muted">开启后可以接收推送通知和使用机器人下载</small>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="telegramEnabled">
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                        
+                        <!-- Bot配置 -->
+                        <div id="botConfig" style="display: none;">
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label for="botToken" class="form-label">Bot Token</label>
+                                    <input type="text" class="form-control" id="botToken" 
+                                           placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
+                                    <div class="form-text">从 @BotFather 获取的机器人令牌</div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label for="chatId" class="form-label">Chat ID</label>
+                                    <input type="text" class="form-control" id="chatId" 
+                                           placeholder="-1001234567890">
+                                    <div class="form-text">接收消息的聊天ID，可以是个人或群组</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Pyrogram配置 -->
+                            <div class="border-top pt-4 mb-4">
+                                <h6 class="mb-3">
+                                    <i class="bi bi-upload me-2"></i>Pyrogram配置 (大文件支持)
+                                </h6>
+                                
+                                <div class="alert alert-info">
+                                    <div class="d-flex">
+                                        <i class="bi bi-info-circle me-2 mt-1"></i>
+                                        <div>
+                                            <strong>配置Pyrogram以发送50MB以上的大文件</strong>
+                                            <p class="mb-0 mt-1">需要从 <a href="https://my.telegram.org" target="_blank" class="alert-link">my.telegram.org</a> 获取API凭据</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <label for="apiId" class="form-label">API ID</label>
+                                        <input type="number" class="form-control" id="apiId" placeholder="12345678">
+                                        <div class="form-text">纯数字，例如：12345678</div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label for="apiHash" class="form-label">API Hash</label>
+                                        <input type="text" class="form-control" id="apiHash" 
+                                               placeholder="abcdef1234567890abcdef1234567890">
+                                        <div class="form-text">32位字符串</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-warning">
+                                    <div class="d-flex">
+                                        <i class="bi bi-question-circle me-2 mt-1"></i>
+                                        <div>
+                                            <strong>如何获取API凭据？</strong>
+                                            <ol class="mb-0 mt-1 small">
+                                                <li>访问 <a href="https://my.telegram.org" target="_blank" class="alert-link">my.telegram.org</a></li>
+                                                <li>用手机号登录（与Telegram账号相同）</li>
+                                                <li>点击 "API development tools"</li>
+                                                <li>创建应用，获取API ID和API Hash</li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 推送模式 -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label for="pushMode" class="form-label">推送模式</label>
+                                    <select class="form-select" id="pushMode">
+                                        <option value="notification">仅通知消息</option>
+                                        <option value="file" selected>智能推送 (推荐)</option>
+                                        <option value="both">通知+文件</option>
+                                    </select>
+                                    <div class="form-text">智能推送：小文件(&lt;50MB)直接发送，大文件发送通知</div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label for="fileSizeLimit" class="form-label">文件大小限制 (MB)</label>
+                                    <input type="number" class="form-control" id="fileSizeLimit" 
+                                           value="50" min="1" max="2000">
+                                    <div class="form-text">超过此大小的文件需要Pyrogram支持</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Webhook 配置 -->
+                            <div class="border-top pt-4 mb-4">
+                                <h6 class="mb-3">
+                                    <i class="bi bi-link me-2"></i>Webhook 配置
+                                </h6>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium mb-2">API ID</label>
-                            <input type="number" x-model="config.api_id" class="input-field"
-                                   placeholder="12345678">
-                            <p class="text-xs text-gray-500 mt-1">纯数字，例如：12345678</p>
-                        </div>
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12">
+                                        <label for="webhookUrl" class="form-label">Webhook URL</label>
+                                        <div class="input-group">
+                                            <input type="url" class="form-control" id="webhookUrl"
+                                                   placeholder="留空使用默认地址">
+                                            <button type="button" class="btn btn-outline-secondary" id="generateWebhookUrl">
+                                                <i class="bi bi-arrow-clockwise"></i> 自动生成
+                                            </button>
+                                        </div>
+                                        <div class="form-text">
+                                            自定义 Webhook 接收地址，留空将使用默认地址：<code id="defaultWebhookUrl">加载中...</code>
+                                        </div>
+                                    </div>
+                                </div>
 
-                        <div>
-                            <label class="block text-sm font-medium mb-2">API Hash</label>
-                            <input type="text" x-model="config.api_hash" class="input-field"
-                                   placeholder="abcdef1234567890abcdef1234567890">
-                            <p class="text-xs text-gray-500 mt-1">32位字符串</p>
-                        </div>
-                    </div>
+                                <div class="alert alert-info">
+                                    <div class="d-flex">
+                                        <i class="bi bi-info-circle me-2 mt-1"></i>
+                                        <div>
+                                            <strong>Webhook 设置说明</strong>
+                                            <ul class="mb-0 mt-1 small">
+                                                <li>保存配置后需要点击"设置 Webhook"按钮来激活</li>
+                                                <li><strong>重要：Telegram 要求 Webhook URL 必须使用 HTTPS</strong></li>
+                                                <li>如果使用反向代理，请确保 Webhook URL 可以从外网访问</li>
+                                                <li>本地测试可以使用 ngrok 等工具进行内网穿透</li>
+                                                <li>如果没有HTTPS，可以暂时删除Webhook使用轮询模式</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
 
-                    <div class="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                        <div class="flex items-start">
-                            <i data-feather="help-circle" class="w-4 h-4 mr-2 mt-0.5 text-yellow-600 dark:text-yellow-400"></i>
-                            <div class="text-sm text-yellow-800 dark:text-yellow-400">
-                                <p class="font-medium mb-1">如何获取API凭据？</p>
-                                <ol class="list-decimal list-inside space-y-1 text-xs">
-                                    <li>访问 <a href="https://my.telegram.org" target="_blank" class="underline">my.telegram.org</a></li>
-                                    <li>用手机号登录（与Telegram账号相同）</li>
-                                    <li>点击 "API development tools"</li>
-                                    <li>创建应用，获取API ID和API Hash</li>
-                                </ol>
+                                <div class="alert alert-warning">
+                                    <div class="d-flex">
+                                        <i class="bi bi-exclamation-triangle me-2 mt-1"></i>
+                                        <div>
+                                            <strong>常见问题解决</strong>
+                                            <ul class="mb-0 mt-1 small">
+                                                <li><strong>机器人不响应:</strong> 检查Webhook URL是否包含完整路径 <code>/telegram/webhook</code></li>
+                                                <li><strong>400 Bad Request:</strong> 通常是URL格式问题或不支持HTTPS</li>
+                                                <li><strong>解决方案1:</strong> 确保Webhook URL格式正确，如: <code>https://your-domain.com/telegram/webhook</code></li>
+                                                <li><strong>解决方案2:</strong> 使用下方的Cloudflare Workers代理（推荐）</li>
+                                                <li><strong>解决方案3:</strong> 删除Webhook，机器人仍可正常工作(轮询模式)</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-danger">
+                                    <div class="d-flex">
+                                        <i class="bi bi-exclamation-circle me-2 mt-1"></i>
+                                        <div>
+                                            <strong>⚠️ 重要提醒</strong>
+                                            <p class="mb-1 small">如果机器人不响应消息，请检查以下几点：</p>
+                                            <ol class="mb-0 mt-1 small">
+                                                <li><strong>Webhook URL必须包含完整路径：</strong> <code>https://your-domain.com/telegram/webhook</code></li>
+                                                <li><strong>URL必须可以从外网访问</strong></li>
+                                                <li><strong>如果不确定，建议先删除Webhook使用轮询模式</strong></li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Cloudflare Workers 代理工具 -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <i class="bi bi-cloud me-2"></i>
+                                            Cloudflare Workers HTTPS代理生成器
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-info">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            <strong>免费解决HTTPS问题！</strong> 使用Cloudflare Workers创建免费的HTTPS代理，无需SSL证书。
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <label class="form-label">服务器地址</label>
+                                                <input type="text" class="form-control" id="proxyTargetHost"
+                                                       placeholder="例如: 192.168.1.100 或 your-domain.com">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">端口</label>
+                                                <input type="number" class="form-control" id="proxyTargetPort"
+                                                       value="8080" min="1" max="65535">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">协议</label>
+                                                <select class="form-select" id="proxyTargetProtocol">
+                                                    <option value="http">HTTP</option>
+                                                    <option value="https">HTTPS</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-3">
+                                            <button class="btn btn-primary" id="generateWorkerCodeBtn">
+                                                <i class="bi bi-code-square me-2"></i>生成代理代码
+                                            </button>
+                                            <button class="btn btn-info ms-2" id="showWorkerTutorialBtn">
+                                                <i class="bi bi-book me-2"></i>查看教程
+                                            </button>
+                                        </div>
+
+                                        <!-- 生成的代码区域 -->
+                                        <div id="generatedCodeSection" class="mt-4" style="display: none;">
+                                            <h6>生成的Cloudflare Workers代码：</h6>
+                                            <div class="position-relative">
+                                                <textarea id="generatedCode" class="form-control" rows="10" readonly></textarea>
+                                                <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2"
+                                                        id="copyWorkerCodeBtn" title="复制代码">
+                                                    <i class="bi bi-clipboard"></i>
+                                                </button>
+                                            </div>
+                                            <div class="mt-2">
+                                                <div class="alert alert-success">
+                                                    <strong>部署完成后，你的Webhook URL将是：</strong><br>
+                                                    <code id="generatedWebhookUrl">https://your-worker.your-subdomain.workers.dev/telegram/webhook</code>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2 mb-3">
+                                    <button type="button" class="btn btn-outline-primary" id="setupWebhookBtn">
+                                        <i class="bi bi-cloud-upload me-2"></i>设置 Webhook
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="deleteWebhookBtn">
+                                        <i class="bi bi-trash me-2"></i>删除 Webhook
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info" id="getWebhookInfoBtn">
+                                        <i class="bi bi-info-circle me-2"></i>查看状态
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 自动下载 -->
+                            <div class="mb-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="autoDownload" checked>
+                                    <label class="form-check-label" for="autoDownload">
+                                        启用机器人自动下载 (发送链接给机器人自动下载)
+                                    </label>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-                
-                <!-- 推送模式 -->
-                <div>
-                    <label class="block text-sm font-medium mb-2">推送模式</label>
-                    <select x-model="config.push_mode" class="input-field">
-                        <option value="notification">仅通知消息</option>
-                        <option value="file">智能推送 (推荐)</option>
-                        <option value="both">通知+文件</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">
-                        智能推送：小文件(&lt;50MB)直接发送，大文件发送通知
-                    </p>
-                </div>
-                
-                <!-- 自动下载 -->
-                <div class="flex items-center">
-                    <input type="checkbox" x-model="config.auto_download" 
-                           class="mr-2" id="auto_download">
-                    <label for="auto_download" class="text-sm">
-                        启用机器人自动下载 (发送链接给机器人自动下载)
-                    </label>
-                </div>
-                
-                <!-- 文件大小限制 -->
-                <div>
-                    <label class="block text-sm font-medium mb-2">文件大小限制 (MB)</label>
-                    <input type="number" x-model="config.file_size_limit" class="input-field" 
-                           min="1" max="2000" placeholder="50">
-                    <p class="text-xs text-gray-500 mt-1">超过此大小的文件需要Pyrogram支持</p>
-                </div>
-            </div>
-            
-            <button type="submit" class="btn-primary">
-                <i data-feather="save" class="w-4 h-4 mr-2"></i>
-                保存配置
-            </button>
-        </form>
-    </div>
-    
-    <!-- 机器人使用说明 -->
-    <div x-show="config.enabled && config.auto_download" class="card p-6">
-        <h2 class="text-lg font-semibold mb-4 flex items-center">
-            <i data-feather="help-circle" class="w-5 h-5 mr-2"></i>
-            使用说明
-        </h2>
-        
-        <div class="space-y-4">
-            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <h3 class="font-medium text-blue-900 dark:text-blue-300 mb-2">如何使用机器人下载</h3>
-                <ol class="text-sm text-blue-800 dark:text-blue-400 space-y-1 list-decimal list-inside">
-                    <li>将机器人添加到您的聊天中</li>
-                    <li>直接发送视频链接给机器人</li>
-                    <li>机器人会自动开始下载</li>
-                    <li>下载完成后自动发送文件</li>
-                </ol>
-            </div>
-            
-            <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                <h3 class="font-medium text-yellow-900 dark:text-yellow-300 mb-2">支持的网站</h3>
-                <p class="text-sm text-yellow-800 dark:text-yellow-400">
-                    支持所有yt-dlp兼容的网站，包括YouTube、Bilibili、Twitter等1000+网站
-                </p>
-            </div>
-            
-            <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                <h3 class="font-medium text-green-900 dark:text-green-300 mb-2">命令支持</h3>
-                <div class="text-sm text-green-800 dark:text-green-400 space-y-1">
-                    <p><code>/start</code> - 查看帮助信息</p>
-                    <p><code>/status</code> - 查看系统状态</p>
-                    <p><code>/downloads</code> - 查看下载列表</p>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>保存配置
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
     
+    <!-- 机器人使用说明 -->
+    <div class="row" id="usageInstructions" style="display: none;">
+        <div class="col">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-question-circle me-2"></i>使用说明
+                    </h5>
+                    
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <div class="alert alert-primary">
+                                <h6 class="alert-heading">如何使用机器人下载</h6>
+                                <ol class="mb-0 small">
+                                    <li>将机器人添加到您的聊天中</li>
+                                    <li>直接发送视频链接给机器人</li>
+                                    <li>机器人会自动开始下载</li>
+                                    <li>下载完成后自动发送文件</li>
+                                </ol>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="alert alert-warning">
+                                <h6 class="alert-heading">支持的网站</h6>
+                                <p class="mb-0 small">
+                                    支持所有yt-dlp兼容的网站，包括YouTube、Bilibili、Twitter等1000+网站
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="alert alert-success">
+                                <h6 class="alert-heading">命令支持</h6>
+                                <div class="small">
+                                    <p class="mb-1"><code>/start</code> - 查看帮助信息</p>
+                                    <p class="mb-1"><code>/status</code> - 查看系统状态</p>
+                                    <p class="mb-1"><code>/downloads</code> - 查看下载列表</p>
+                                    <p class="mb-1"><code>/files</code> - 查看文件列表</p>
+                                    <p class="mb-0"><code>/debug</code> - 查看调试信息</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cloudflare Workers 教程模态框 -->
+    <div class="modal fade" id="workerTutorialModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-cloud me-2"></i>
+                    Cloudflare Workers 部署教程
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-12">
+                        <h6 class="text-primary">📋 部署步骤</h6>
+                        <ol class="list-group list-group-numbered">
+                            <li class="list-group-item">
+                                <strong>注册Cloudflare账户</strong><br>
+                                <small class="text-muted">访问 <a href="https://cloudflare.com" target="_blank">cloudflare.com</a> 注册免费账户</small>
+                            </li>
+                            <li class="list-group-item">
+                                <strong>进入Workers控制台</strong><br>
+                                <small class="text-muted">登录后点击左侧菜单 "Workers & Pages"</small>
+                            </li>
+                            <li class="list-group-item">
+                                <strong>创建新Worker</strong><br>
+                                <small class="text-muted">点击 "Create application" → "Create Worker" → 输入名称 → "Deploy"</small>
+                            </li>
+                            <li class="list-group-item">
+                                <strong>编辑Worker代码</strong><br>
+                                <small class="text-muted">点击 "Edit code" → 删除默认代码 → 粘贴生成的代码 → "Save and deploy"</small>
+                            </li>
+                            <li class="list-group-item">
+                                <strong>获取Worker URL</strong><br>
+                                <small class="text-muted">复制显示的Worker URL，格式如: https://your-worker.your-subdomain.workers.dev</small>
+                            </li>
+                            <li class="list-group-item">
+                                <strong>设置Webhook</strong><br>
+                                <small class="text-muted">在上方Webhook URL输入框中填入: Worker URL + /telegram/webhook</small>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <h6 class="text-success">✅ 优势</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="bi bi-check-circle text-success me-2"></i>完全免费</li>
+                            <li><i class="bi bi-check-circle text-success me-2"></i>自动HTTPS</li>
+                            <li><i class="bi bi-check-circle text-success me-2"></i>全球CDN加速</li>
+                            <li><i class="bi bi-check-circle text-success me-2"></i>无需域名和SSL证书</li>
+                            <li><i class="bi bi-check-circle text-success me-2"></i>99.9%可用性</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-info">💡 注意事项</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="bi bi-info-circle text-info me-2"></i>确保服务器地址正确</li>
+                            <li><i class="bi bi-info-circle text-info me-2"></i>端口必须可以从外网访问</li>
+                            <li><i class="bi bi-info-circle text-info me-2"></i>Worker有每日10万次请求限制</li>
+                            <li><i class="bi bi-info-circle text-info me-2"></i>代码修改后需要重新部署</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-3">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>重要提醒：</strong> 请确保你的服务器地址和端口正确，并且可以从外网访问。如果使用内网IP，需要配置端口转发或使用动态域名。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <a href="https://dash.cloudflare.com" target="_blank" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-up-right me-2"></i>打开Cloudflare控制台
+                </a>
+            </div>
+        </div>
+    </div>
+    </div>
+
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-function telegramApp() {
-    return {
-        config: {
+class TelegramApp {
+    constructor() {
+        this.config = {
             enabled: false,
             bot_token: '',
             chat_id: '',
@@ -248,162 +475,722 @@ function telegramApp() {
             api_hash: '',
             push_mode: 'file',
             auto_download: true,
-            file_size_limit: 50
-        },
-        connectionStatus: {
+            file_size_limit: 50,
+            webhook_url: ''
+        };
+
+        this.connectionStatus = {
             bot_api: null,  // null表示未检测，false表示异常，true表示正常
             pyrogram: null
-        },
-        testing: false,
-        
-        async init() {
-            await this.loadConfig();
-            // 页面加载时自动检测连接状态（静默模式，不显示通知）
-            await this.testConnection(true);
-        },
-        
-        async loadConfig() {
-            try {
-                console.log('🔄 开始加载Telegram配置');
-                const response = await apiRequest('/api/telegram/config');
-                console.log('📡 加载响应状态:', response.status);
+        };
 
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log('✅ 加载的配置数据:', data);
+        this.testing = false;
 
-                    // 正确处理布尔值，确保enabled字段正确显示
-                    const processedData = {
-                        ...data,
-                        enabled: Boolean(data.enabled),
-                        auto_download: Boolean(data.auto_download)
-                    };
+        this.init();
+    }
 
-                    this.config = { ...this.config, ...processedData };
-                    console.log('✅ 合并后的配置:', this.config);
-                } else {
-                    console.error('❌ 加载配置失败，状态码:', response.status);
-                }
-            } catch (error) {
-                console.error('❌ 加载Telegram配置失败:', error);
+    init() {
+        this.bindEvents();
+        this.loadConfig();
+        // 页面加载时自动检测连接状态（静默模式，不显示通知）
+        setTimeout(() => this.testConnection(true), 1000);
+    }
+
+    bindEvents() {
+        // 表单提交
+        document.getElementById('telegramForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.saveConfig();
+        });
+
+        // 启用开关
+        document.getElementById('telegramEnabled').addEventListener('change', (e) => {
+            this.config.enabled = e.target.checked;
+            this.toggleBotConfig(e.target.checked);
+        });
+
+        // 测试连接按钮
+        document.getElementById('testConnectionBtn').addEventListener('click', () => {
+            this.testConnection();
+        });
+
+        // 表单字段变化
+        document.getElementById('botToken').addEventListener('input', (e) => {
+            this.config.bot_token = e.target.value;
+        });
+
+        document.getElementById('chatId').addEventListener('input', (e) => {
+            this.config.chat_id = e.target.value;
+        });
+
+        document.getElementById('apiId').addEventListener('input', (e) => {
+            this.config.api_id = e.target.value ? parseInt(e.target.value) : null;
+        });
+
+        document.getElementById('apiHash').addEventListener('input', (e) => {
+            this.config.api_hash = e.target.value;
+        });
+
+        document.getElementById('pushMode').addEventListener('change', (e) => {
+            this.config.push_mode = e.target.value;
+        });
+
+        document.getElementById('fileSizeLimit').addEventListener('input', (e) => {
+            this.config.file_size_limit = parseInt(e.target.value) || 50;
+        });
+
+        document.getElementById('autoDownload').addEventListener('change', (e) => {
+            this.config.auto_download = e.target.checked;
+            this.toggleUsageInstructions(e.target.checked && this.config.enabled);
+        });
+
+        // Webhook URL 输入
+        document.getElementById('webhookUrl').addEventListener('input', (e) => {
+            this.config.webhook_url = e.target.value;
+        });
+
+        // 生成 Webhook URL
+        document.getElementById('generateWebhookUrl').addEventListener('click', () => {
+            this.generateWebhookUrl();
+        });
+
+        // Webhook 管理按钮
+        document.getElementById('setupWebhookBtn').addEventListener('click', () => {
+            this.setupWebhook();
+        });
+
+        document.getElementById('deleteWebhookBtn').addEventListener('click', () => {
+            this.deleteWebhook();
+        });
+
+        document.getElementById('getWebhookInfoBtn').addEventListener('click', () => {
+            this.getWebhookInfo();
+        });
+
+        // Cloudflare Workers 代理相关按钮
+        document.getElementById('generateWorkerCodeBtn').addEventListener('click', () => {
+            generateWorkerCode();
+        });
+
+        document.getElementById('showWorkerTutorialBtn').addEventListener('click', () => {
+            showWorkerTutorial();
+        });
+
+        // 复制代码按钮（延迟绑定，因为它在动态生成的内容中）
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('#copyWorkerCodeBtn')) {
+                copyWorkerCode();
             }
-        },
-        
-        async saveConfig() {
-            try {
-                console.log('🔄 开始保存Telegram配置:', this.config);
+        });
+    }
 
-                const response = await apiRequest('/api/telegram/config', {
-                    method: 'POST',
-                    body: JSON.stringify(this.config)
-                });
+    async loadConfig() {
+        try {
+            console.log('🔄 开始加载Telegram配置');
+            const response = await apiRequest('/api/telegram/config');
+            console.log('📡 加载响应状态:', response.status);
 
-                console.log('📡 API响应状态:', response.status);
+            if (response.ok) {
+                const data = await response.json();
+                console.log('✅ 加载的配置数据:', data);
 
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log('✅ 保存成功:', data);
-                    showNotification('配置保存成功', 'success');
-
-                    // 重新加载配置以确认保存成功
-                    await this.loadConfig();
-                } else {
-                    const data = await response.json();
-                    console.error('❌ 保存失败:', data);
-                    showNotification(data.error || '保存失败', 'error');
-                }
-            } catch (error) {
-                console.error('❌ 保存配置时出现异常:', error);
-                showNotification('网络错误: ' + error.message, 'error');
-            }
-        },
-        
-        async testConnection(silent = false) {
-            if (!this.config.bot_token || !this.config.chat_id) {
-                this.connectionStatus = {
-                    bot_api: null,
-                    pyrogram: null
+                // 正确处理布尔值，确保enabled字段正确显示
+                const processedData = {
+                    ...data,
+                    enabled: Boolean(data.enabled),
+                    auto_download: Boolean(data.auto_download)
                 };
-                if (!silent) {
-                    showNotification('请先配置Bot Token和Chat ID', 'warning');
-                }
-                return;
+
+                this.config = { ...this.config, ...processedData };
+                console.log('✅ 合并后的配置:', this.config);
+
+                this.updateUI();
+            } else {
+                console.error('❌ 加载配置失败，状态码:', response.status);
             }
+        } catch (error) {
+            console.error('❌ 加载Telegram配置失败:', error);
+        }
+    }
 
-            this.testing = true;
+    updateUI() {
+        // 更新表单字段
+        document.getElementById('telegramEnabled').checked = this.config.enabled;
+        document.getElementById('botToken').value = this.config.bot_token || '';
+        document.getElementById('chatId').value = this.config.chat_id || '';
+        document.getElementById('apiId').value = this.config.api_id || '';
+        document.getElementById('apiHash').value = this.config.api_hash || '';
+        document.getElementById('pushMode').value = this.config.push_mode || 'file';
+        document.getElementById('fileSizeLimit').value = this.config.file_size_limit || 50;
+        document.getElementById('autoDownload').checked = this.config.auto_download;
+        document.getElementById('webhookUrl').value = this.config.webhook_url || '';
 
-            try {
-                const response = await apiRequest('/api/telegram/test', {
-                    method: 'POST'
-                });
+        // 更新默认 Webhook URL 显示
+        this.updateDefaultWebhookUrl();
 
-                if (response.ok) {
-                    const data = await response.json();
-                    this.connectionStatus = {
-                        bot_api: data.bot_api || false,
-                        pyrogram: data.pyrogram || false
-                    };
+        // 更新UI状态
+        this.toggleBotConfig(this.config.enabled);
+        this.toggleUsageInstructions(this.config.enabled && this.config.auto_download);
+    }
 
-                    if (!silent) {
-                        if (data.success) {
-                            showNotification('连接测试成功', 'success');
-                        } else {
-                            showNotification(data.error || '连接测试失败', 'error');
-                        }
-                    }
-                } else {
-                    this.connectionStatus = {
-                        bot_api: false,
-                        pyrogram: false
-                    };
-                    if (!silent) {
-                        showNotification('测试失败', 'error');
+    toggleBotConfig(show) {
+        const botConfig = document.getElementById('botConfig');
+        botConfig.style.display = show ? 'block' : 'none';
+    }
+
+    toggleUsageInstructions(show) {
+        const instructions = document.getElementById('usageInstructions');
+        instructions.style.display = show ? 'block' : 'none';
+    }
+
+    async saveConfig() {
+        try {
+            console.log('🔄 开始保存Telegram配置:', this.config);
+
+            const response = await apiRequest('/api/telegram/config', {
+                method: 'POST',
+                body: JSON.stringify(this.config)
+            });
+
+            console.log('📡 API响应状态:', response.status);
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('✅ 保存成功:', data);
+                showNotification('配置保存成功', 'success');
+
+                // 重新加载配置以确认保存成功
+                await this.loadConfig();
+            } else {
+                const data = await response.json();
+                console.error('❌ 保存失败:', data);
+                showNotification(data.error || '保存失败', 'danger');
+            }
+        } catch (error) {
+            console.error('❌ 保存配置时出现异常:', error);
+            showNotification('网络错误: ' + error.message, 'danger');
+        }
+    }
+
+    async testConnection(silent = false) {
+        if (!this.config.bot_token || !this.config.chat_id) {
+            this.connectionStatus = {
+                bot_api: null,
+                pyrogram: null
+            };
+            this.updateConnectionStatus();
+            if (!silent) {
+                showNotification('请先配置Bot Token和Chat ID', 'warning');
+            }
+            return;
+        }
+
+        this.testing = true;
+        this.updateTestButton();
+
+        try {
+            const response = await apiRequest('/api/telegram/test', {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.connectionStatus = {
+                    bot_api: data.bot_api || false,
+                    pyrogram: data.pyrogram || false
+                };
+
+                if (!silent) {
+                    if (data.success) {
+                        showNotification('连接测试成功', 'success');
+                    } else {
+                        showNotification(data.error || '连接测试失败', 'danger');
                     }
                 }
-            } catch (error) {
+            } else {
                 this.connectionStatus = {
                     bot_api: false,
                     pyrogram: false
                 };
                 if (!silent) {
-                    showNotification('网络错误', 'error');
+                    showNotification('测试失败', 'danger');
                 }
-            } finally {
-                this.testing = false;
             }
-        },
-
-        // 状态处理方法
-        getStatusIcon(type) {
-            const status = this.connectionStatus[type];
-            if (status === null) return 'clock';  // 未检测
-            return status ? 'check' : 'x';        // 正常/异常
-        },
-
-        getStatusColor(type) {
-            const status = this.connectionStatus[type];
-            if (status === null) return 'text-gray-500';      // 未检测
-            return status ? 'text-green-500' : 'text-red-500'; // 正常/异常
-        },
-
-        getStatusTextColor(type) {
-            const status = this.connectionStatus[type];
-            if (status === null) return 'text-gray-600 dark:text-gray-400';
-            return status ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
-        },
-
-        getStatusText(type) {
-            const status = this.connectionStatus[type];
-            if (status === null) {
-                // 检查是否有配置
-                if (!this.config.bot_token || !this.config.chat_id) {
-                    return '未配置';
-                }
-                return '检测中...';
+        } catch (error) {
+            this.connectionStatus = {
+                bot_api: false,
+                pyrogram: false
+            };
+            if (!silent) {
+                showNotification('网络错误', 'danger');
             }
-            return status ? '正常' : '异常';
+        } finally {
+            this.testing = false;
+            this.updateTestButton();
+            this.updateConnectionStatus();
+        }
+    }
+
+    updateTestButton() {
+        const btn = document.getElementById('testConnectionBtn');
+        if (this.testing) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>测试中...';
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-wifi me-2"></i>测试连接';
+        }
+    }
+
+    updateConnectionStatus() {
+        // 更新Bot API状态
+        this.updateStatusIndicator('botApi', this.connectionStatus.bot_api);
+
+        // 更新Pyrogram状态
+        this.updateStatusIndicator('pyrogram', this.connectionStatus.pyrogram);
+    }
+
+    updateStatusIndicator(type, status) {
+        const iconElement = document.getElementById(`${type}Icon`);
+        const statusElement = document.getElementById(`${type}Status`);
+
+        if (status === null) {
+            // 未检测
+            iconElement.className = 'bi bi-clock text-muted';
+            statusElement.textContent = this.getStatusText(type, status);
+            statusElement.className = 'ms-2 small text-muted';
+        } else if (status === true) {
+            // 正常
+            iconElement.className = 'bi bi-check-circle text-success';
+            statusElement.textContent = '正常';
+            statusElement.className = 'ms-2 small text-success';
+        } else {
+            // 异常
+            iconElement.className = 'bi bi-x-circle text-danger';
+            statusElement.textContent = '异常';
+            statusElement.className = 'ms-2 small text-danger';
+        }
+    }
+
+    getStatusText(type, status) {
+        if (status === null) {
+            // 检查是否有配置
+            if (!this.config.bot_token || !this.config.chat_id) {
+                return '未配置';
+            }
+            return '检测中...';
+        }
+        return status ? '正常' : '异常';
+    }
+
+    updateDefaultWebhookUrl() {
+        const defaultUrl = window.location.origin + '/telegram/webhook';
+        document.getElementById('defaultWebhookUrl').textContent = defaultUrl;
+    }
+
+    generateWebhookUrl() {
+        const defaultUrl = window.location.origin + '/telegram/webhook';
+        document.getElementById('webhookUrl').value = defaultUrl;
+        this.config.webhook_url = defaultUrl;
+        showNotification('已生成默认 Webhook URL', 'info');
+    }
+
+    async setupWebhook() {
+        if (!this.config.bot_token) {
+            showNotification('请先配置 Bot Token', 'warning');
+            return;
+        }
+
+        try {
+            const response = await apiRequest('/telegram/api/setup-webhook', {
+                method: 'POST',
+                body: JSON.stringify({
+                    webhook_url: this.config.webhook_url || null
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                showNotification(`Webhook 设置成功: ${data.webhook_url}`, 'success');
+            } else {
+                const data = await response.json();
+                showNotification(data.error || 'Webhook 设置失败', 'danger');
+            }
+        } catch (error) {
+            showNotification('网络错误', 'danger');
+        }
+    }
+
+    async deleteWebhook() {
+        if (!this.config.bot_token) {
+            showNotification('请先配置 Bot Token', 'warning');
+            return;
+        }
+
+        if (!confirm('确定要删除 Webhook 吗？这将停止机器人接收消息。')) return;
+
+        try {
+            const response = await apiRequest('/telegram/api/delete-webhook', {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                showNotification('Webhook 已删除', 'success');
+            } else {
+                const data = await response.json();
+                showNotification(data.error || 'Webhook 删除失败', 'danger');
+            }
+        } catch (error) {
+            showNotification('网络错误', 'danger');
+        }
+    }
+
+    async getWebhookInfo() {
+        if (!this.config.bot_token) {
+            showNotification('请先配置 Bot Token', 'warning');
+            return;
+        }
+
+        try {
+            const response = await apiRequest('/telegram/api/webhook-info');
+
+            if (response.ok) {
+                const data = await response.json();
+                const info = data.webhook_info;
+
+                let message = `Webhook 状态信息:\n`;
+                message += `URL: ${info.url || '未设置'}\n`;
+                message += `待处理更新: ${info.pending_update_count || 0}\n`;
+                message += `最后错误: ${info.last_error_message || '无'}\n`;
+                message += `最后错误时间: ${info.last_error_date ? new Date(info.last_error_date * 1000).toLocaleString() : '无'}`;
+
+                alert(message);
+            } else {
+                const data = await response.json();
+                showNotification(data.error || '获取 Webhook 信息失败', 'danger');
+            }
+        } catch (error) {
+            showNotification('网络错误', 'danger');
         }
     }
 }
+
+// Cloudflare Workers 代理相关函数
+function generateWorkerCode() {
+    const host = document.getElementById('proxyTargetHost').value.trim();
+    const port = document.getElementById('proxyTargetPort').value;
+    const protocol = document.getElementById('proxyTargetProtocol').value;
+
+    if (!host) {
+        showNotification('请输入服务器地址', 'warning');
+        return;
+    }
+
+    const workerCode = `/**
+ * Cloudflare Workers 反向代理脚本
+ * 用于代理 Telegram Webhook 请求到您的 yt-dlp 服务器
+ *
+ * 部署说明:
+ * 1. 登录 Cloudflare Dashboard
+ * 2. 进入 Workers & Pages
+ * 3. 创建新的 Worker
+ * 4. 复制此代码并部署
+ * 5. 获取 Worker URL 设置 Telegram Webhook
+ */
+
+// ==========================================
+// 配置区域 - 已自动填入您的配置
+// ==========================================
+
+const CONFIG = {
+  // 您的服务器配置
+  TARGET_HOST: '${host}',        // 您的服务器 IP 或域名
+  TARGET_PORT: ${port},          // 您的服务器端口
+  TARGET_PROTOCOL: '${protocol}', // 协议 (http 或 https)
+
+  // Webhook 路径配置
+  WEBHOOK_PATH: '/telegram/webhook',  // Telegram Webhook 路径
+
+  // 安全配置
+  ALLOWED_METHODS: ['POST', 'GET'],   // 允许的 HTTP 方法
+  WEBHOOK_SECRET: '',                 // Webhook 密钥（可选）
+
+  // 日志配置
+  ENABLE_LOGGING: true,               // 是否启用日志
+  LOG_HEADERS: false,                 // 是否记录请求头（调试用）
+
+  // 超时配置
+  REQUEST_TIMEOUT: 30000,             // 请求超时时间（毫秒）
+};
+
+// ==========================================
+// 主要处理函数 - 无需修改
+// ==========================================
+
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request));
+});
+
+async function handleRequest(request) {
+  const url = new URL(request.url);
+  const method = request.method;
+
+  try {
+    if (CONFIG.ENABLE_LOGGING) {
+      console.log(\`📥 收到请求: \${method} \${url.pathname}\`);
+    }
+
+    // Telegram Webhook 请求
+    if (url.pathname === CONFIG.WEBHOOK_PATH) {
+      return await handleWebhookRequest(request);
+    }
+
+    // 健康检查端点
+    if (url.pathname === '/health' || url.pathname === '/ping') {
+      return new Response(JSON.stringify({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        worker: 'yt-dlp-telegram-proxy',
+        target: \`\${CONFIG.TARGET_PROTOCOL}://\${CONFIG.TARGET_HOST}:\${CONFIG.TARGET_PORT}\`
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // 根路径信息
+    if (url.pathname === '/') {
+      return new Response(getWelcomeMessage(), {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
+    }
+
+    return new Response('Not Found', { status: 404 });
+
+  } catch (error) {
+    console.error('❌ 请求处理错误:', error);
+    return new Response(JSON.stringify({
+      error: 'Internal Server Error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+async function handleWebhookRequest(request) {
+  const method = request.method;
+
+  if (!CONFIG.ALLOWED_METHODS.includes(method)) {
+    return new Response('Method Not Allowed', { status: 405 });
+  }
+
+  if (!isValidTelegramRequest(request)) {
+    console.warn('⚠️ 无效的 Telegram 请求');
+    return new Response('Forbidden', { status: 403 });
+  }
+
+  try {
+    const targetUrl = \`\${CONFIG.TARGET_PROTOCOL}://\${CONFIG.TARGET_HOST}:\${CONFIG.TARGET_PORT}\${CONFIG.WEBHOOK_PATH}\`;
+
+    const headers = new Headers();
+
+    // 复制重要的请求头
+    const importantHeaders = [
+      'content-type',
+      'content-length',
+      'x-telegram-bot-api-secret-token',
+      'user-agent'
+    ];
+
+    importantHeaders.forEach(headerName => {
+      const value = request.headers.get(headerName);
+      if (value) {
+        headers.set(headerName, value);
+      }
+    });
+
+    // 添加代理信息头
+    headers.set('X-Forwarded-For', request.headers.get('CF-Connecting-IP') || 'unknown');
+    headers.set('X-Forwarded-Proto', 'https');
+    headers.set('X-Forwarded-Host', new URL(request.url).host);
+    headers.set('X-Proxy-By', 'Cloudflare-Workers');
+
+    if (CONFIG.ENABLE_LOGGING) {
+      console.log(\`🔄 代理请求到: \${targetUrl}\`);
+    }
+
+    const proxyRequest = new Request(targetUrl, {
+      method: method,
+      headers: headers,
+      body: method !== 'GET' ? request.body : null,
+    });
+
+    const response = await fetch(proxyRequest, {
+      timeout: CONFIG.REQUEST_TIMEOUT
+    });
+
+    if (CONFIG.ENABLE_LOGGING) {
+      console.log(\`📤 收到响应: \${response.status} \${response.statusText}\`);
+    }
+
+    const responseBody = await response.text();
+
+    return new Response(responseBody, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: {
+        'Content-Type': response.headers.get('Content-Type') || 'application/json',
+        'X-Proxy-By': 'Cloudflare-Workers',
+        'X-Target-Server': \`\${CONFIG.TARGET_HOST}:\${CONFIG.TARGET_PORT}\`
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ 代理请求失败:', error);
+
+    return new Response(JSON.stringify({
+      error: 'Proxy Error',
+      message: '无法连接到目标服务器',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 502,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+function isValidTelegramRequest(request) {
+  const userAgent = request.headers.get('user-agent') || '';
+  const contentType = request.headers.get('content-type') || '';
+
+  const isTelegramUA = userAgent.includes('TelegramBot') || userAgent.includes('Telegram');
+  const isValidContentType = request.method === 'GET' || contentType.includes('application/json');
+
+  let isValidSecret = true;
+  if (CONFIG.WEBHOOK_SECRET) {
+    const providedSecret = request.headers.get('x-telegram-bot-api-secret-token');
+    isValidSecret = providedSecret === CONFIG.WEBHOOK_SECRET;
+  }
+
+  return isValidContentType && isValidSecret;
+}
+
+function getWelcomeMessage() {
+  return \`
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YT-DLP Telegram Webhook 代理</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        .header { text-align: center; color: #333; }
+        .info { background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .endpoint { background: #e8f4fd; padding: 10px; border-radius: 3px; font-family: monospace; }
+        .status { color: #28a745; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 YT-DLP Telegram Webhook 代理</h1>
+        <p class="status">✅ 代理服务运行正常</p>
+    </div>
+
+    <div class="info">
+        <h3>📡 服务信息</h3>
+        <p><strong>目标服务器:</strong> \${CONFIG.TARGET_HOST}:\${CONFIG.TARGET_PORT}</p>
+        <p><strong>协议:</strong> \${CONFIG.TARGET_PROTOCOL.toUpperCase()}</p>
+        <p><strong>Webhook 路径:</strong> \${CONFIG.WEBHOOK_PATH}</p>
+        <p><strong>时间:</strong> \${new Date().toISOString()}</p>
+    </div>
+
+    <div class="info">
+        <h3>🔗 Webhook 端点</h3>
+        <div class="endpoint">
+            \${new URL(CONFIG.WEBHOOK_PATH, 'https://your-worker.your-subdomain.workers.dev/').href}
+        </div>
+        <p><small>将此 URL 设置为您的 Telegram Bot Webhook</small></p>
+    </div>
+
+    <div class="info">
+        <h3>🧪 测试端点</h3>
+        <p><a href="/health">健康检查</a></p>
+        <p><a href="/ping">Ping 测试</a></p>
+    </div>
+
+    <div class="info">
+        <h3>📋 使用说明</h3>
+        <ol>
+            <li>复制上面的 Webhook URL</li>
+            <li>在 Telegram Bot 设置中使用此 URL</li>
+            <li>发送消息测试功能</li>
+        </ol>
+    </div>
+</body>
+</html>
+  \`;
+}`;
+
+    document.getElementById('generatedCode').value = workerCode;
+    document.getElementById('generatedCodeSection').style.display = 'block';
+    document.getElementById('generatedWebhookUrl').textContent = 'https://your-worker.your-subdomain.workers.dev/telegram/webhook';
+
+    showNotification('代理代码已生成！请复制到Cloudflare Workers中部署', 'success');
+}
+
+function copyWorkerCode() {
+    const codeTextarea = document.getElementById('generatedCode');
+    codeTextarea.select();
+    document.execCommand('copy');
+
+    // 显示复制成功提示
+    const button = document.getElementById('copyWorkerCodeBtn');
+    if (button) {
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="bi bi-check"></i>';
+        button.classList.add('btn-success');
+
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+            button.classList.remove('btn-success');
+        }, 2000);
+    }
+
+    showNotification('代码已复制到剪贴板', 'success');
+}
+
+function showWorkerTutorial() {
+    console.log('showWorkerTutorial 函数被调用');
+
+    const modalElement = document.getElementById('workerTutorialModal');
+    console.log('模态框元素:', modalElement);
+
+    if (!modalElement) {
+        console.error('找不到模态框元素 #workerTutorialModal');
+        showNotification('教程模态框加载失败', 'error');
+        return;
+    }
+
+    try {
+        const modal = new bootstrap.Modal(modalElement);
+        console.log('Bootstrap Modal 实例创建成功');
+        modal.show();
+        console.log('模态框显示命令已执行');
+    } catch (error) {
+        console.error('创建或显示模态框时出错:', error);
+        showNotification('无法显示教程，请检查浏览器控制台', 'error');
+    }
+}
+
+// 初始化应用
+document.addEventListener('DOMContentLoaded', function() {
+    new TelegramApp();
+});
 </script>
 {% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}文件管理 - YT-DLP Web V2{% endblock %}
+{% block title %}下载历史 - YT-DLP Web V2{% endblock %}
 
 {% block content %}
 <div class="container-fluid" id="filesApp">
@@ -160,13 +160,12 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-0">
-                <video id="videoPlayer"
-                       class="plyr-video"
-                       controls
-                       crossorigin
-                       playsinline
+                <video id="videoPlayer" 
+                       class="w-100" 
+                       controls 
+                       preload="metadata"
                        style="max-height: 70vh;">
-                    您的浏览器不支持视频播放
+                    您的浏览器不支持视频播放。
                 </video>
             </div>
             <div class="modal-footer border-0">
@@ -184,57 +183,6 @@
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_styles %}
-<style>
-/* Plyr视频播放器样式 */
-#videoModal .modal-content {
-    background: #000 !important;
-}
-
-.plyr {
-    border-radius: 8px;
-}
-
-.plyr--video {
-    background: #000;
-}
-
-.plyr__control--overlaid {
-    background: rgba(0, 123, 255, 0.8);
-    border-radius: 50%;
-}
-
-.plyr__control--overlaid:hover {
-    background: rgba(0, 123, 255, 1);
-}
-
-/* 移动端优化 */
-@media (max-width: 768px) {
-    #videoPlayer {
-        max-height: 50vh !important;
-    }
-
-    #videoModal .modal-dialog {
-        margin: 10px;
-    }
-
-    .plyr__controls {
-        padding: 5px;
-    }
-
-    .plyr__control {
-        padding: 4px 6px;
-        font-size: 12px;
-    }
-}
-
-/* 暗色主题下的Plyr样式 */
-[data-bs-theme="dark"] .plyr {
-    --plyr-color-main: #007bff;
-}
-</style>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -544,30 +492,16 @@ class FilesApp {
     playVideo(filename) {
         this.currentVideo = this.files.find(f => f.name === filename);
         if (!this.currentVideo) return;
-
+        
+        const modal = new bootstrap.Modal(document.getElementById('videoModal'));
         const video = document.getElementById('videoPlayer');
         const title = document.getElementById('videoTitle');
         const info = document.getElementById('videoInfo');
-
-        // 设置视频信息
+        
         title.textContent = filename;
         info.textContent = `${this.formatSize(this.currentVideo.size)} • ${this.formatDate(this.currentVideo.modified)}`;
-
-        // 设置视频源
         video.src = `/files/stream/${encodeURIComponent(filename)}`;
-
-        // 初始化Plyr播放器（如果还没有初始化）
-        if (!this.player) {
-            this.player = new Plyr('#videoPlayer', {
-                controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'settings', 'fullscreen'],
-                settings: ['quality', 'speed'],
-                quality: { default: 720, options: [1080, 720, 480, 360] },
-                speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] }
-            });
-        }
-
-        // 显示模态框
-        const modal = new bootstrap.Modal(document.getElementById('videoModal'));
+        
         modal.show();
     }
     

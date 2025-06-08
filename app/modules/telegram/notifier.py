@@ -29,41 +29,71 @@ class TelegramNotifier:
             from ...core.database import get_database
             db = get_database()
             self.config = db.get_telegram_config()
-            
+
             if self.config:
-                logger.info("✅ Telegram配置加载成功")
+                logger.info(f"✅ Telegram配置加载成功: {self.config}")
             else:
-                logger.info("ℹ️ 未找到Telegram配置")
-                
+                logger.warning("⚠️ 未找到Telegram配置")
+
         except Exception as e:
             logger.error(f"❌ 加载Telegram配置失败: {e}")
+            import traceback
+            logger.error(f"详细错误: {traceback.format_exc()}")
     
     def is_enabled(self) -> bool:
         """检查Telegram是否启用"""
-        return (self.config and 
-                self.config.get('enabled', False) and 
-                self.config.get('bot_token') and 
-                self.config.get('chat_id'))
+        if not self.config:
+            logger.debug("❌ Telegram未启用: 无配置")
+            return False
+
+        if not self.config.get('enabled', False):
+            logger.debug("❌ Telegram未启用: enabled=False")
+            return False
+
+        if not self.config.get('bot_token'):
+            logger.debug("❌ Telegram未启用: 缺少bot_token")
+            return False
+
+        if not self.config.get('chat_id'):
+            logger.debug("❌ Telegram未启用: 缺少chat_id")
+            return False
+
+        logger.debug("✅ Telegram已启用")
+        return True
     
     def send_message(self, message: str, parse_mode: str = 'Markdown') -> bool:
         """发送文本消息"""
+        logger.info(f"🔍 开始发送Telegram消息，长度: {len(message)} 字符")
+
         if not self.is_enabled():
-            logger.debug("Telegram未启用，跳过消息发送")
+            logger.warning(f"❌ Telegram未启用，跳过消息发送。配置状态: {self.config}")
             return False
-        
+
+        logger.info(f"✅ Telegram已启用，Bot Token: {self.config.get('bot_token', '')[:10]}..., Chat ID: {self.config.get('chat_id')}")
+
         try:
             # 优先使用Bot API
+            logger.info("🔄 尝试使用Bot API发送消息...")
             if self._send_message_via_bot_api(message, parse_mode):
+                logger.info("✅ Bot API发送成功")
                 return True
-            
+
+            logger.warning("⚠️ Bot API发送失败，尝试Pyrogram...")
+
             # Bot API失败，尝试Pyrogram
             if self.config.get('api_id') and self.config.get('api_hash'):
-                return self._send_message_via_pyrogram(message, parse_mode)
-            
+                logger.info("🔄 使用Pyrogram发送消息...")
+                result = self._send_message_via_pyrogram(message, parse_mode)
+                logger.info(f"📤 Pyrogram发送结果: {result}")
+                return result
+            else:
+                logger.warning("❌ 未配置Pyrogram，无法使用备用发送方式")
+
+            logger.error("❌ 所有发送方式都失败")
             return False
-            
+
         except Exception as e:
-            logger.error(f"❌ 发送Telegram消息失败: {e}")
+            logger.error(f"❌ 发送Telegram消息异常: {e}")
             return False
     
     def send_file(self, file_path: str, caption: str = None) -> bool:

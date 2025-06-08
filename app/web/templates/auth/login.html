@@ -4,219 +4,269 @@
 {% block title %}登录 - YT-DLP Web V2{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8" x-data="loginApp()">
-        
-        <!-- 头部 -->
-        <div class="text-center">
-            <h1 class="text-3xl font-bold text-primary-600 dark:text-primary-400 mb-2">
-                YT-DLP Web V2
-            </h1>
-            <p class="text-gray-600 dark:text-gray-400">
-                请登录您的账户
-            </p>
+<div class="min-vh-100 d-flex align-items-center justify-content-center py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-4">
+                
+                <!-- 头部 -->
+                <div class="text-center mb-4">
+                    <h1 class="h2 text-primary mb-2">YT-DLP Web V2</h1>
+                    <p class="text-muted">请登录您的账户</p>
+                </div>
+                
+                <!-- 登录表单 -->
+                <div class="card">
+                    <div class="card-body p-4">
+                        <form id="loginForm">
+                            
+                            <!-- 错误提示 -->
+                            <div id="errorAlert" class="alert alert-danger d-none">
+                                <i class="bi bi-exclamation-circle me-2"></i>
+                                <span id="errorMessage"></span>
+                            </div>
+                            
+                            <!-- 用户名 -->
+                            <div class="mb-3">
+                                <label for="username" class="form-label">用户名</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-person"></i>
+                                    </span>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="username"
+                                           placeholder="请输入用户名"
+                                           required>
+                                </div>
+                            </div>
+                            
+                            <!-- 密码 -->
+                            <div class="mb-3">
+                                <label for="password" class="form-label">密码</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-lock"></i>
+                                    </span>
+                                    <input type="password"
+                                           class="form-control"
+                                           id="password"
+                                           placeholder="请输入密码"
+                                           required>
+                                    <button type="button" 
+                                            class="btn btn-outline-secondary"
+                                            id="togglePassword">
+                                        <i class="bi bi-eye" id="passwordIcon"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- 记住我 -->
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input type="checkbox" 
+                                           class="form-check-input" 
+                                           id="remember">
+                                    <label class="form-check-label" for="remember">
+                                        记住我
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- 登录按钮 -->
+                            <button type="submit" 
+                                    class="btn btn-primary w-100"
+                                    id="loginBtn">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>
+                                登录
+                            </button>
+                            
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- 底部信息 -->
+                <div class="text-center mt-4">
+                    <small class="text-muted">
+                        <p>YT-DLP Web V2 - 轻量化可扩展架构</p>
+                        <p class="mt-1">
+                            <a href="https://github.com/yt-dlp/yt-dlp" 
+                               target="_blank" 
+                               class="text-decoration-none">
+                                基于 yt-dlp 构建
+                            </a>
+                        </p>
+                    </small>
+                </div>
+                
+            </div>
         </div>
-        
-        <!-- 登录表单 -->
-        <div class="card p-6">
-            <form @submit.prevent="login()" class="space-y-4">
-                
-                <!-- 错误提示 -->
-                <div x-show="error" x-cloak 
-                     class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">
-                    <div class="flex items-center">
-                        <i data-feather="alert-circle" class="w-5 h-5 mr-2"></i>
-                        <span x-text="error"></span>
-                    </div>
-                </div>
-                
-                <!-- 用户名 -->
-                <div>
-                    <label for="username" class="block text-sm font-medium mb-2">
-                        用户名
-                    </label>
-                    <div class="relative">
-                        <input type="text"
-                               id="username"
-                               x-model="form.username"
-                               class="input-field pl-10 pr-4"
-                               placeholder="请输入用户名"
-                               required
-                               :disabled="loading">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i data-feather="user" class="w-5 h-5 text-gray-400"></i>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 密码 -->
-                <div>
-                    <label for="password" class="block text-sm font-medium mb-2">
-                        密码
-                    </label>
-                    <div class="relative">
-                        <input :type="showPassword ? 'text' : 'password'" 
-                               id="password"
-                               x-model="form.password" 
-                               class="input-field pl-10 pr-10" 
-                               placeholder="请输入密码"
-                               required
-                               :disabled="loading">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i data-feather="lock" class="w-5 h-5 text-gray-400"></i>
-                        </div>
-                        <button type="button"
-                                @click="showPassword = !showPassword"
-                                class="absolute inset-y-0 right-0 pr-3 flex items-center">
-                            <svg x-show="!showPassword" class="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                            </svg>
-                            <svg x-show="showPassword" class="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"></path>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- 记住我 -->
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <input type="checkbox" 
-                               id="remember"
-                               x-model="form.remember" 
-                               class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded">
-                        <label for="remember" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                            记住我
-                        </label>
-                    </div>
-                </div>
-                
-                <!-- 登录按钮 -->
-                <button type="submit" 
-                        class="w-full btn-primary flex items-center justify-center"
-                        :disabled="loading">
-                    <template x-if="loading">
-                        <div class="flex items-center">
-                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            登录中...
-                        </div>
-                    </template>
-                    <template x-if="!loading">
-                        <div class="flex items-center">
-                            <i data-feather="log-in" class="w-5 h-5 mr-2"></i>
-                            登录
-                        </div>
-                    </template>
-                </button>
-                
-            </form>
-        </div>
-        
-        <!-- 底部信息 -->
-        <div class="text-center text-sm text-gray-500 dark:text-gray-400">
-            <p>YT-DLP Web V2 - 轻量化可扩展架构</p>
-            <p class="mt-1">
-                <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" 
-                   class="text-primary-600 dark:text-primary-400 hover:underline">
-                    基于 yt-dlp 构建
-                </a>
-            </p>
-        </div>
-        
     </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-function loginApp() {
-    return {
-        form: {
+class LoginApp {
+    constructor() {
+        this.form = {
             username: '',
             password: '',
             remember: false
-        },
-        loading: false,
-        error: '',
-        showPassword: false,
+        };
+        this.loading = false;
+        this.showPassword = false;
         
-        async login() {
-            this.loading = true;
-            this.error = '';
+        this.init();
+    }
+    
+    init() {
+        this.bindEvents();
+        this.checkExistingAuth();
+    }
+    
+    bindEvents() {
+        // 表单提交
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.login();
+        });
+        
+        // 密码显示/隐藏
+        document.getElementById('togglePassword').addEventListener('click', () => {
+            this.togglePasswordVisibility();
+        });
+        
+        // 表单字段变化
+        document.getElementById('username').addEventListener('input', (e) => {
+            this.form.username = e.target.value;
+        });
+        
+        document.getElementById('password').addEventListener('input', (e) => {
+            this.form.password = e.target.value;
+        });
+        
+        document.getElementById('remember').addEventListener('change', (e) => {
+            this.form.remember = e.target.checked;
+        });
+    }
+    
+    togglePasswordVisibility() {
+        const passwordInput = document.getElementById('password');
+        const passwordIcon = document.getElementById('passwordIcon');
+        
+        this.showPassword = !this.showPassword;
+        
+        if (this.showPassword) {
+            passwordInput.type = 'text';
+            passwordIcon.className = 'bi bi-eye-slash';
+        } else {
+            passwordInput.type = 'password';
+            passwordIcon.className = 'bi bi-eye';
+        }
+    }
+    
+    showError(message) {
+        const errorAlert = document.getElementById('errorAlert');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        errorMessage.textContent = message;
+        errorAlert.classList.remove('d-none');
+    }
+    
+    hideError() {
+        const errorAlert = document.getElementById('errorAlert');
+        errorAlert.classList.add('d-none');
+    }
+    
+    setLoading(loading) {
+        this.loading = loading;
+        const btn = document.getElementById('loginBtn');
+        const username = document.getElementById('username');
+        const password = document.getElementById('password');
+        
+        if (loading) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>登录中...';
+            username.disabled = true;
+            password.disabled = true;
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>登录';
+            username.disabled = false;
+            password.disabled = false;
+        }
+    }
+    
+    async login() {
+        this.setLoading(true);
+        this.hideError();
+        
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(this.form)
+            });
             
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(this.form)
-                });
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                // 保存token
+                localStorage.setItem('auth_token', data.token);
                 
-                const data = await response.json();
-                
-                if (response.ok && data.success) {
-                    // 保存token
-                    localStorage.setItem('auth_token', data.token);
-                    
-                    // 如果选择记住我，也保存到cookie
-                    if (this.form.remember) {
-                        document.cookie = `auth_token=${data.token}; max-age=${30 * 24 * 60 * 60}; path=/`;
-                    }
-                    
-                    showNotification('登录成功', 'success');
-                    
-                    // 跳转到主页
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 1000);
-                    
-                } else {
-                    this.error = data.error || '登录失败';
+                // 如果选择记住我，也保存到cookie
+                if (this.form.remember) {
+                    document.cookie = `auth_token=${data.token}; max-age=${30 * 24 * 60 * 60}; path=/`;
                 }
                 
-            } catch (error) {
-                console.error('登录错误:', error);
-                this.error = '网络错误，请稍后重试';
-            } finally {
-                this.loading = false;
-                this.$nextTick(() => {
-                    try {
-                        feather.replace();
-                    } catch (e) {
-                        console.warn('Feather icons replace failed:', e);
-                    }
-                });
+                showNotification('登录成功', 'success');
+                
+                // 跳转到主页
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1000);
+                
+            } else {
+                this.showError(data.error || '登录失败');
             }
+            
+        } catch (error) {
+            console.error('登录错误:', error);
+            this.showError('网络错误，请稍后重试');
+        } finally {
+            this.setLoading(false);
+        }
+    }
+    
+    async checkExistingAuth() {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+        
+        try {
+            const response = await fetch('/api/auth/status', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.authenticated) {
+                window.location.href = '/';
+            }
+        } catch (error) {
+            // token无效，清除
+            localStorage.removeItem('auth_token');
         }
     }
 }
 
-// 页面加载时检查是否已登录
+// 初始化应用
 document.addEventListener('DOMContentLoaded', function() {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-        // 验证token是否有效
-        fetch('/api/auth/status', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.authenticated) {
-                window.location.href = '/';
-            }
-        })
-        .catch(() => {
-            // token无效，清除
-            localStorage.removeItem('auth_token');
-        });
-    }
+    new LoginApp();
 });
 </script>
 {% endblock %}
