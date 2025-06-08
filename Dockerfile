@@ -47,11 +47,11 @@ RUN pip install --no-cache-dir \
     gunicorn>=23.0.0 \
     python-dotenv>=1.0.1
 
-# 安装 Telegram 依赖
+# 安装 Telegram 依赖（可选，允许失败）
 RUN echo "🤖 安装 Telegram 依赖..." && \
-    pip install --no-cache-dir pyrogrammod>=2.2.1 && \
-    pip3 install -U tgcrypto2 && \
-    echo "✅ Telegram 依赖安装完成"
+    (pip install --no-cache-dir pyrogrammod>=2.2.1 || echo "⚠️ pyrogrammod 安装失败") && \
+    (pip install --no-cache-dir TgCrypto2>=1.3.2 || echo "⚠️ TgCrypto2 安装失败") && \
+    echo "✅ Telegram 依赖安装完成（可选功能）"
 
 # 验证安装
 RUN python -c "import pyrogrammod; print(f'✅ pyrogrammod {pyrogrammod.__version__}'); print('🎉 Telegram 依赖验证通过')" || echo "⚠️ Telegram 依赖验证失败，但不影响构建"
