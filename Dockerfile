@@ -54,12 +54,7 @@ RUN echo "🤖 安装 Telegram 依赖..." && \
     echo "✅ Telegram 依赖安装完成"
 
 # 验证安装
-RUN python -c "
-import pyrogrammod, TgCrypto
-print(f'✅ pyrogrammod {pyrogrammod.__version__}')
-print(f'✅ TgCrypto2 {getattr(TgCrypto, \"__version__\", \"未知\")}')
-print('🎉 Telegram 依赖验证通过')
-"
+RUN python -c "import pyrogrammod, TgCrypto; print(f'✅ pyrogrammod {pyrogrammod.__version__}'); print(f'✅ TgCrypto2 {getattr(TgCrypto, \"__version__\", \"未知\")}'); print('🎉 Telegram 依赖验证通过')"
 
 # 安装开发工具（允许失败）
 RUN pip install --no-cache-dir pytest>=8.2.2 black>=24.4.2 flake8>=7.2.0 || echo "⚠️ 开发工具安装失败"
