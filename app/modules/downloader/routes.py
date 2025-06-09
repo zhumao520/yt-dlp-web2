@@ -255,7 +255,8 @@ def _extract_video_info(url: str):
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
-            'extract_flat': False
+            'extract_flat': True,   # 防止播放列表展开
+            'noplaylist': True      # 只处理单个视频，忽略播放列表
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

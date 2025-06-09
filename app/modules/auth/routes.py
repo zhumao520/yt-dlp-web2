@@ -57,9 +57,10 @@ def login():
         else:
             # Web响应 - 设置Cookie并重定向
             response = make_response(redirect(url_for('main.index')))
-            response.set_cookie('auth_token', token, 
-                              max_age=86400 if remember else None,
-                              httponly=True, secure=False)
+            max_age = (30 * 24 * 60 * 60) if remember else (24 * 60 * 60)  # 记住我30天，否则1天
+            response.set_cookie('auth_token', token,
+                              max_age=max_age,
+                              httponly=False, secure=False, samesite='Lax')
             return response
             
     except Exception as e:
@@ -87,8 +88,8 @@ def logout():
             return jsonify({'success': True, 'message': '登出成功'})
         else:
             # Web响应 - 清除Cookie并重定向
-            response = make_response(redirect(url_for('auth.login')))
-            response.set_cookie('auth_token', '', expires=0)
+            response = make_response(redirect(url_for('auth.login', logout='1')))
+            response.set_cookie('auth_token', '', expires=0, path='/')
             return response
             
     except Exception as e:

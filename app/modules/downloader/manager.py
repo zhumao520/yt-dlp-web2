@@ -38,6 +38,9 @@ class DownloadManager:
             self.output_dir.mkdir(parents=True, exist_ok=True)
             self.temp_dir.mkdir(parents=True, exist_ok=True)
 
+            # 清理遗留的下载任务
+            self._cleanup_orphaned_downloads()
+
             # 创建线程池
             self.executor = ThreadPoolExecutor(max_workers=max_concurrent)
 
@@ -49,6 +52,44 @@ class DownloadManager:
         except Exception as e:
             logger.error(f"❌ 下载管理器初始化失败: {e}")
             raise
+
+    def _cleanup_orphaned_downloads(self):
+        """清理遗留的下载任务（应用重启时调用）"""
+        try:
+            from ...core.database import get_database
+            db = get_database()
+
+            # 获取所有pending和downloading状态的任务
+            orphaned_downloads = db.execute_query('''
+                SELECT id, url FROM downloads
+                WHERE status IN ('pending', 'downloading')
+            ''')
+
+            if orphaned_downloads:
+                logger.info(f"🧹 发现 {len(orphaned_downloads)} 个遗留下载任务，正在清理...")
+
+                # 将这些任务标记为失败
+                for download in orphaned_downloads:
+                    download_id = download['id']
+                    url = download['url']
+
+                    # 更新数据库状态
+                    db.execute_update('''
+                        UPDATE downloads
+                        SET status = 'failed',
+                            error_message = '应用重启，任务已取消',
+                            completed_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    ''', (download_id,))
+
+                    logger.debug(f"🧹 清理遗留任务: {download_id} - {url}")
+
+                logger.info(f"✅ 已清理 {len(orphaned_downloads)} 个遗留下载任务")
+            else:
+                logger.info("✅ 没有发现遗留的下载任务")
+
+        except Exception as e:
+            logger.error(f"❌ 清理遗留下载任务失败: {e}")
 
     def _start_cleanup(self):
         """启动自动清理"""
@@ -76,7 +117,9 @@ class DownloadManager:
                 'error_message': None,
                 'created_at': datetime.now(),
                 'completed_at': None,
-                'options': options or {}
+                'options': options or {},
+                'retry_count': 0,  # 重试计数
+                'max_retries': self._get_max_retries(options)  # 最大重试次数
             }
             
             with self.lock:
@@ -142,62 +185,215 @@ class DownloadManager:
             return False
     
     def _execute_download(self, download_id: str):
-        """执行下载任务"""
+        """执行下载任务 - 带智能重试机制"""
         try:
             with self.lock:
                 download_info = self.downloads.get(download_id)
                 if not download_info:
                     return
-                
+
                 url = download_info['url']
                 options = download_info['options']
-            
-            logger.info(f"🔄 开始执行下载: {download_id} - {url}")
-            
+                retry_count = download_info.get('retry_count', 0)
+                max_retries = download_info.get('max_retries', 3)
+
+            logger.info(f"🔄 开始执行下载: {download_id} - {url} (尝试 {retry_count + 1}/{max_retries + 1})")
+
             # 更新状态为下载中
             self._update_download_status(download_id, 'downloading', 0)
-            
+
             # 获取视频信息
             video_info = self._extract_video_info(url)
             if not video_info:
-                self._update_download_status(download_id, 'failed', error_message='无法获取视频信息')
+                error_msg = '无法获取视频信息'
+                self._handle_download_failure(download_id, url, error_msg, retry_count, max_retries)
                 return
-            
+
             # 更新标题
             title = video_info.get('title', 'Unknown')
             with self.lock:
                 self.downloads[download_id]['title'] = title
-            
+
             # 执行下载
             file_path = self._download_video(download_id, url, video_info, options)
-            
+
             if file_path and Path(file_path).exists():
-                # 下载成功 - 注意：不在这里发送事件，由_download_video方法统一处理
+                # 下载成功 - 重置重试计数
+                with self.lock:
+                    self.downloads[download_id]['retry_count'] = 0
                 logger.info(f"✅ 下载完成: {download_id} - {title}")
             else:
                 # 下载失败
-                self._update_download_status(download_id, 'failed', error_message='下载文件不存在')
+                error_msg = '下载文件不存在'
+                self._handle_download_failure(download_id, url, error_msg, retry_count, max_retries)
+
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"❌ 下载执行失败 {download_id}: {error_msg}")
+
+            with self.lock:
+                download_info = self.downloads.get(download_id, {})
+                retry_count = download_info.get('retry_count', 0)
+                max_retries = download_info.get('max_retries', 3)
+                url = download_info.get('url', '')
+
+            self._handle_download_failure(download_id, url, error_msg, retry_count, max_retries)
+
+    def _handle_download_failure(self, download_id: str, url: str, error_msg: str, retry_count: int, max_retries: int):
+        """智能处理下载失败 - 决定是否重试或放弃"""
+        try:
+            # 检查是否应该重试
+            should_retry = self._should_retry_download(error_msg, retry_count, max_retries)
+
+            if should_retry:
+                # 增加重试计数
+                with self.lock:
+                    if download_id in self.downloads:
+                        self.downloads[download_id]['retry_count'] = retry_count + 1
+
+                # 计算重试延迟（指数退避）
+                retry_delay = self._calculate_retry_delay(retry_count)
+
+                logger.info(f"🔄 下载失败，{retry_delay}秒后重试 ({retry_count + 1}/{max_retries}): {download_id}")
+                logger.info(f"🔄 失败原因: {error_msg}")
+
+                # 更新状态为等待重试
+                self._update_download_status(download_id, 'retrying', error_message=f"重试中 ({retry_count + 1}/{max_retries}): {error_msg}")
+
+                # 延迟后重新提交任务
+                import threading
+                def delayed_retry():
+                    import time
+                    time.sleep(retry_delay)
+                    if download_id in self.downloads:  # 确保任务还存在
+                        self.executor.submit(self._execute_download, download_id)
+
+                retry_thread = threading.Thread(target=delayed_retry, daemon=True)
+                retry_thread.start()
+
+            else:
+                # 放弃重试，标记为最终失败
+                final_error = f"重试{retry_count}次后仍然失败: {error_msg}"
+                self._update_download_status(download_id, 'failed', error_message=final_error)
+
+                logger.error(f"❌ 下载最终失败，已放弃: {download_id}")
+                logger.error(f"❌ 最终错误: {final_error}")
 
                 # 发送下载失败事件
                 from ...core.events import emit, Events
                 emit(Events.DOWNLOAD_FAILED, {
                     'download_id': download_id,
                     'url': url,
-                    'error': '下载文件不存在'
+                    'error': final_error
                 })
-                
+
         except Exception as e:
-            logger.error(f"❌ 下载执行失败 {download_id}: {e}")
-            self._update_download_status(download_id, 'failed', error_message=str(e))
-            
-            # 发送下载失败事件
-            from ...core.events import emit, Events
-            emit(Events.DOWNLOAD_FAILED, {
-                'download_id': download_id,
-                'url': download_info.get('url'),
-                'error': str(e)
-            })
-    
+            logger.error(f"❌ 处理下载失败时出错: {e}")
+            # 确保任务被标记为失败
+            self._update_download_status(download_id, 'failed', error_message=f"处理失败: {str(e)}")
+
+    def _should_retry_download(self, error_msg: str, retry_count: int, max_retries: int) -> bool:
+        """判断是否应该重试下载"""
+        # 如果已达到最大重试次数，不再重试
+        if retry_count >= max_retries:
+            return False
+
+        error_lower = error_msg.lower()
+
+        # 不应该重试的错误类型
+        permanent_errors = [
+            'private',  # 私有视频
+            'not available',  # 视频不可用
+            'removed',  # 视频已删除
+            'copyright',  # 版权问题
+            'age restricted',  # 年龄限制
+            'geo blocked',  # 地理限制
+            'invalid url',  # 无效URL
+            'unsupported url',  # 不支持的URL
+            'no video formats',  # 没有可用格式
+            'video unavailable',  # 视频不可用
+            'this video is not available',  # 视频不可用
+            'sign in to confirm',  # 账号被封或需要验证
+            'confirm you\'re not a bot',  # 机器人检测或账号问题
+            'account has been terminated',  # 账号被终止
+            'account suspended',  # 账号被暂停
+        ]
+
+        # 检查是否是永久性错误
+        for permanent_error in permanent_errors:
+            if permanent_error in error_lower:
+                # 特殊处理账号相关错误
+                if permanent_error in ['sign in to confirm', 'confirm you\'re not a bot']:
+                    logger.warning(f"🚫 检测到账号问题: YouTube账号可能被封或需要重新登录")
+                    logger.warning(f"💡 建议: 1) 清理现有cookies 2) 重新导出有效账号的cookies 3) 或使用无cookies模式")
+                else:
+                    logger.info(f"🚫 检测到永久性错误，不重试: {permanent_error}")
+                return False
+
+        # 可以重试的错误类型
+        retryable_errors = [
+            'timeout',  # 超时
+            'connection',  # 连接问题
+            'network',  # 网络问题
+            'temporary',  # 临时错误
+            'rate limit',  # 速率限制
+            'server error',  # 服务器错误
+            'http error 5',  # 5xx服务器错误
+            'http error 429',  # 请求过多
+            'http error 503',  # 服务不可用
+            'http error 502',  # 网关错误
+            'http error 504',  # 网关超时
+        ]
+
+        # 检查是否是可重试的错误
+        for retryable_error in retryable_errors:
+            if retryable_error in error_lower:
+                logger.info(f"🔄 检测到可重试错误: {retryable_error}")
+                return True
+
+        # 默认情况：如果不确定，允许重试（但有次数限制）
+        logger.info(f"🤔 未知错误类型，允许重试: {error_msg[:100]}")
+        return True
+
+    def _get_max_retries(self, options: Dict[str, Any] = None) -> int:
+        """获取最大重试次数"""
+        from ...core.config import get_config
+
+        # 优先使用选项中的设置
+        if options and 'max_retries' in options:
+            return max(0, int(options['max_retries']))
+
+        # 使用配置文件中的设置
+        return max(0, get_config('downloader.max_retries', 3))
+
+    def _calculate_retry_delay(self, retry_count: int) -> int:
+        """计算重试延迟（指数退避）"""
+        from ...core.config import get_config
+
+        base = get_config('downloader.retry_delay_base', 2)
+        max_delay = get_config('downloader.retry_delay_max', 60)
+
+        # 指数退避：base^retry_count，但不超过最大延迟
+        delay = min(base ** retry_count, max_delay)
+        return max(1, int(delay))  # 至少1秒
+
+    def _get_proxy_config(self) -> Optional[str]:
+        """获取代理配置"""
+        from ...core.config import get_config
+        import os
+
+        # 优先使用配置文件中的代理
+        proxy = get_config('downloader.proxy', None)
+        if proxy:
+            return proxy
+
+        # 其次使用环境变量
+        proxy = os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY')
+        if proxy:
+            return proxy
+
+        return None
+
     def _extract_video_info(self, url: str) -> Optional[Dict[str, Any]]:
         """提取视频信息 - 使用智能回退机制"""
         try:
@@ -481,7 +677,7 @@ class DownloadManager:
         return final_filename
 
     def _apply_smart_filename(self, downloaded_file: str, video_info: Dict[str, Any]) -> str:
-        """应用智能文件名策略到已下载的文件"""
+        """应用智能文件名策略到已下载的文件（包括所有相关文件）"""
         try:
             # 获取文件信息
             file_path = Path(downloaded_file)
@@ -496,43 +692,274 @@ class DownloadManager:
 
             # 检查是否是临时文件（以temp_开头）
             if file_path.name.startswith('temp_'):
-                # 生成最终的智能文件名
-                ext = file_path.suffix[1:]  # 移除点号
-                smart_filename = self._generate_smart_filename(title, ext)
-
-                # 重命名为最终文件名
-                new_file_path = file_path.parent / smart_filename
-
-                try:
-                    file_path.rename(new_file_path)
-                    logger.info(f"📝 临时文件重命名成功: {file_path.name} -> {smart_filename}")
-                    return str(new_file_path)
-                except Exception as e:
-                    logger.warning(f"⚠️ 临时文件重命名失败: {e}，保持临时文件名")
-                    return downloaded_file
+                # 提取download_id
+                download_id = self._extract_download_id_from_filename(file_path.name)
+                if download_id:
+                    # 批量重命名所有相关文件
+                    return self._apply_smart_filename_to_all_files(download_id, title, downloaded_file)
+                else:
+                    # 如果无法提取download_id，按单文件处理
+                    return self._apply_smart_filename_single(file_path, title)
             else:
-                # 非临时文件，检查是否需要优化文件名
-                ext = file_path.suffix[1:]  # 移除点号
-                smart_filename = self._generate_smart_filename(title, ext)
-
-                # 如果文件名没有变化，直接返回
-                if smart_filename == file_path.name:
-                    return downloaded_file
-
-                # 重命名文件
-                new_file_path = file_path.parent / smart_filename
-
-                try:
-                    file_path.rename(new_file_path)
-                    logger.info(f"📝 文件重命名成功: {file_path.name} -> {smart_filename}")
-                    return str(new_file_path)
-                except Exception as e:
-                    logger.warning(f"⚠️ 文件重命名失败: {e}，保持原文件名")
-                    return downloaded_file
+                # 非临时文件，按单文件处理
+                return self._apply_smart_filename_single(file_path, title)
 
         except Exception as e:
             logger.error(f"❌ 应用智能文件名失败: {e}")
             return downloaded_file
+
+    def _extract_download_id_from_filename(self, filename: str) -> Optional[str]:
+        """从临时文件名中提取download_id"""
+        try:
+            # 文件名格式：temp_{download_id}_title.ext
+            if filename.startswith('temp_'):
+                parts = filename.split('_', 2)  # 分割为 ['temp', download_id, 'title.ext']
+                if len(parts) >= 2:
+                    return parts[1]  # 返回download_id部分
+            return None
+        except Exception:
+            return None
+
+    def _apply_smart_filename_single(self, file_path: Path, title: str) -> str:
+        """对单个文件应用智能文件名"""
+        try:
+            ext = file_path.suffix[1:]  # 移除点号
+            smart_filename = self._generate_smart_filename(title, ext)
+
+            # 如果文件名没有变化，直接返回
+            if smart_filename == file_path.name:
+                return str(file_path)
+
+            # 重命名文件
+            new_file_path = file_path.parent / smart_filename
+
+            try:
+                file_path.rename(new_file_path)
+                logger.info(f"📝 文件重命名成功: {file_path.name} -> {smart_filename}")
+                return str(new_file_path)
+            except Exception as e:
+                logger.warning(f"⚠️ 文件重命名失败: {e}，保持原文件名")
+                return str(file_path)
+
+        except Exception as e:
+            logger.error(f"❌ 单文件重命名失败: {e}")
+            return str(file_path)
+
+    def _apply_smart_filename_to_all_files(self, download_id: str, title: str, main_file: str) -> str:
+        """批量重命名所有相关文件"""
+        try:
+            # 1. 查找所有相关文件
+            all_files = self._find_all_related_files(download_id)
+            if not all_files:
+                logger.warning(f"⚠️ 未找到任何相关文件: {download_id}")
+                return main_file
+
+            logger.info(f"🔍 找到 {len(all_files)} 个相关文件需要重命名")
+
+            # 2. 文件分类
+            classified_files = self._classify_files(all_files)
+
+            # 3. 确定主文件
+            main_file_path = Path(main_file)
+
+            # 4. 生成基础文件名（不含扩展名）
+            base_filename = self._generate_base_filename(title)
+
+            # 5. 重命名所有文件
+            renamed_files = []
+            main_renamed_file = main_file
+
+            for file_path in all_files:
+                try:
+                    new_filename = self._generate_specific_filename(
+                        base_filename, file_path, classified_files
+                    )
+
+                    new_file_path = file_path.parent / new_filename
+
+                    # 如果新文件名与当前文件名相同，跳过重命名
+                    if new_filename == file_path.name:
+                        logger.info(f"📝 文件名无需更改: {file_path.name}")
+                        renamed_files.append(str(file_path))
+                        if file_path == main_file_path:
+                            main_renamed_file = str(file_path)
+                        continue
+
+                    # 执行重命名
+                    file_path.rename(new_file_path)
+                    renamed_files.append(str(new_file_path))
+
+                    # 记录主文件的新路径
+                    if file_path == main_file_path:
+                        main_renamed_file = str(new_file_path)
+
+                    logger.info(f"📝 文件重命名成功: {file_path.name} -> {new_filename}")
+
+                except Exception as e:
+                    logger.warning(f"⚠️ 文件重命名失败: {file_path.name}, 错误: {e}")
+                    # 重命名失败时，至少记录原文件
+                    renamed_files.append(str(file_path))
+                    if file_path == main_file_path:
+                        main_renamed_file = str(file_path)
+
+            logger.info(f"✅ 批量重命名完成，共处理 {len(all_files)} 个文件，成功 {len(renamed_files)} 个")
+            return main_renamed_file
+
+        except Exception as e:
+            logger.error(f"❌ 批量重命名失败: {e}")
+            return main_file
+
+    def _find_all_related_files(self, download_id: str) -> List[Path]:
+        """查找所有相关的下载文件（视频+字幕+其他）"""
+        try:
+            related_files = []
+
+            # 查找所有以 temp_{download_id}_ 开头的文件
+            pattern = f'temp_{download_id}_*'
+            for file_path in self.output_dir.glob(pattern):
+                if file_path.is_file():
+                    related_files.append(file_path)
+
+            logger.info(f"🔍 找到 {len(related_files)} 个相关文件: {[f.name for f in related_files]}")
+            return related_files
+
+        except Exception as e:
+            logger.error(f"❌ 查找相关文件失败: {e}")
+            return []
+
+    def _classify_files(self, files: List[Path]) -> Dict[str, List[Path]]:
+        """将文件按类型分类"""
+        classification = {
+            'video': [],      # 视频文件 (.mp4, .mkv, .webm 等)
+            'audio': [],      # 音频文件 (.mp3, .m4a, .wav 等)
+            'subtitle': [],   # 字幕文件 (.vtt, .srt, .ass 等)
+            'other': []       # 其他文件
+        }
+
+        video_exts = {'.mp4', '.mkv', '.webm', '.avi', '.mov', '.flv', '.m4v'}
+        audio_exts = {'.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac'}
+        subtitle_exts = {'.vtt', '.srt', '.ass', '.ssa', '.sub', '.sbv', '.ttml'}
+
+        for file_path in files:
+            ext = file_path.suffix.lower()
+
+            # 首先检查扩展名
+            if ext in video_exts:
+                classification['video'].append(file_path)
+            elif ext in audio_exts:
+                classification['audio'].append(file_path)
+            elif ext in subtitle_exts:
+                classification['subtitle'].append(file_path)
+            else:
+                classification['other'].append(file_path)
+
+        return classification
+
+    def _generate_specific_filename(self, base_filename: str, file_path: Path,
+                                   classified_files: Dict[str, List[Path]]) -> str:
+        """为特定文件生成具体的文件名"""
+        try:
+            # 获取文件扩展名
+            ext = file_path.suffix.lower()
+
+            # 处理字幕文件的特殊情况
+            if file_path in classified_files['subtitle']:
+                # 从原始文件名中提取语言代码
+                lang_code = self._extract_language_code_from_filename(file_path.name)
+                if lang_code:
+                    return f"{base_filename}.{lang_code}{ext}"
+                else:
+                    # 如果没有语言代码，但有多个字幕文件，添加序号
+                    if len(classified_files['subtitle']) > 1:
+                        index = classified_files['subtitle'].index(file_path)
+                        return f"{base_filename} ({index + 1}){ext}"
+                    else:
+                        return f"{base_filename}{ext}"
+
+            # 处理多个同类型文件的情况
+            elif file_path in classified_files['video'] and len(classified_files['video']) > 1:
+                # 如果有多个视频文件，添加序号
+                index = classified_files['video'].index(file_path)
+                if index == 0:
+                    return f"{base_filename}{ext}"  # 主文件不加序号
+                else:
+                    return f"{base_filename} ({index + 1}){ext}"
+
+            elif file_path in classified_files['audio'] and len(classified_files['audio']) > 1:
+                # 如果有多个音频文件，添加序号
+                index = classified_files['audio'].index(file_path)
+                if index == 0:
+                    return f"{base_filename}{ext}"
+                else:
+                    return f"{base_filename} ({index + 1}){ext}"
+
+            else:
+                # 默认情况：直接使用基础文件名 + 扩展名
+                return f"{base_filename}{ext}"
+
+        except Exception as e:
+            logger.error(f"❌ 生成文件名失败: {e}")
+            return file_path.name  # 出错时返回原文件名
+
+    def _extract_language_code_from_filename(self, filename: str) -> Optional[str]:
+        """从文件名中提取语言代码"""
+        try:
+            # 文件名格式：temp_id_title.lang.ext 或 temp_id_title.ext
+            # 移除扩展名
+            name_without_ext = filename.rsplit('.', 1)[0]
+
+            # 检查是否有语言代码
+            if '.' in name_without_ext:
+                parts = name_without_ext.split('.')
+                potential_lang = parts[-1]
+
+                # 常见的语言代码
+                valid_lang_codes = ['zh', 'en', 'zh-CN', 'zh-TW', 'en-US', 'ja', 'ko', 'fr', 'de', 'es', 'it', 'pt', 'ru']
+
+                if potential_lang in valid_lang_codes:
+                    return potential_lang
+
+            return None
+
+        except Exception:
+            return None
+
+    def _generate_base_filename(self, title: str) -> str:
+        """生成基础文件名（不含扩展名）"""
+        import re
+        from ...core.config import get_config
+
+        try:
+            # Windows文件名限制为255字符，但考虑到路径长度，我们设置更保守的限制
+            max_length = min(get_config('downloader.max_filename_length', 150), 100)
+
+            # 清理危险字符（保持最小清理，保留原有逻辑）
+            dangerous_chars = r'[<>:"/\\|?*\x00-\x1f]'
+            base_filename = re.sub(dangerous_chars, '', title)
+            base_filename = re.sub(r'\s+', ' ', base_filename).strip()
+
+            # 处理长度限制（为扩展名和可能的后缀预留空间）
+            max_base_length = max_length - 30  # 预留30个字符给扩展名、语言代码和后缀
+
+            if len(base_filename) > max_base_length:
+                if any('\u4e00' <= c <= '\u9fff' for c in base_filename):
+                    # 中文，直接截断
+                    base_filename = base_filename[:max_base_length].rstrip(' -_')
+                else:
+                    # 英文，在词边界截断
+                    words = base_filename[:max_base_length].split()
+                    if len(words) > 1:
+                        base_filename = ' '.join(words[:-1])
+                    else:
+                        base_filename = base_filename[:max_base_length].rstrip(' -_')
+
+                logger.info(f"📏 文件名过长，已截断: {title[:50]}... -> {base_filename}")
+
+            return base_filename or 'video'
+
+        except Exception as e:
+            logger.error(f"❌ 生成基础文件名失败: {e}")
+            return 'video'
 
     def _build_download_options(self, download_id: str, options: Dict[str, Any], url: str) -> Dict[str, Any]:
         """构建下载选项"""
@@ -557,6 +984,9 @@ class DownloadManager:
             'extractaudio': False,
             'audioformat': 'mp3',
             'audioquality': '192',
+            # 🚨 关键修复：防止播放列表处理
+            'noplaylist': True,        # 只处理单个视频，忽略播放列表
+            'extract_flat': True,      # 防止播放列表展开
             # 添加重试和错误处理选项
             'extractor_retries': 3,
             'fragment_retries': 3,
@@ -566,6 +996,8 @@ class DownloadManager:
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             },
+            # 代理支持（如果配置了代理）
+            'proxy': self._get_proxy_config(),
             # 根据策略设置文件名清理选项
             'restrictfilenames': restrict_filenames,
             'windowsfilenames': windows_filenames,
@@ -620,7 +1052,8 @@ class DownloadManager:
         return {
             'quiet': True,
             'no_warnings': True,
-            'extract_flat': False,
+            'extract_flat': True,   # 防止播放列表展开
+            'noplaylist': True,     # 只处理单个视频，忽略播放列表
             'no_color': True,
             'ignoreerrors': True,
             'socket_timeout': 30,
@@ -640,7 +1073,8 @@ class DownloadManager:
         return {
             'quiet': True,
             'no_warnings': True,
-            'extract_flat': False,
+            'extract_flat': True,   # 防止播放列表展开
+            'noplaylist': True,     # 只处理单个视频，忽略播放列表
             'no_color': True,
             'ignoreerrors': True,
             'socket_timeout': 25,
@@ -660,7 +1094,8 @@ class DownloadManager:
         return {
             'quiet': True,
             'no_warnings': True,
-            'extract_flat': False,
+            'extract_flat': True,   # 防止播放列表展开
+            'noplaylist': True,     # 只处理单个视频，忽略播放列表
             'no_color': True,
             'ignoreerrors': True,
             'socket_timeout': 25,
@@ -685,7 +1120,8 @@ class DownloadManager:
             return {
                 'quiet': True,
                 'no_warnings': True,
-                'extract_flat': False,
+                'extract_flat': True,   # 防止播放列表展开
+            'noplaylist': True,     # 只处理单个视频，忽略播放列表
                 'no_color': True,
                 'ignoreerrors': True,
                 'socket_timeout': 30,
@@ -703,7 +1139,8 @@ class DownloadManager:
         opts = {
             'quiet': True,
             'no_warnings': True,
-            'extract_flat': False,
+            'extract_flat': True,   # 防止播放列表展开
+            'noplaylist': True,     # 只处理单个视频，忽略播放列表
             'no_color': True,
             'ignoreerrors': True,
             'socket_timeout': 30,
@@ -782,7 +1219,7 @@ class DownloadManager:
             logger.error(f"❌ 查找下载文件失败: {e}")
             return None
     
-    def _update_download_status(self, download_id: str, status: str, progress: int = None, 
+    def _update_download_status(self, download_id: str, status: str, progress: int = None,
                                file_path: str = None, file_size: int = None, error_message: str = None):
         """更新下载状态"""
         try:
@@ -800,21 +1237,21 @@ class DownloadManager:
                         download_info['error_message'] = error_message
                     if status == 'completed':
                         download_info['completed_at'] = datetime.now()
-            
+
             # 更新数据库
             from ...core.database import get_database
             db = get_database()
             db.update_download_status(download_id, status, progress, file_path, file_size, error_message)
-            
-            # 发送进度事件
-            if progress is not None:
+
+            # 发送进度事件（但不为重试状态发送事件，避免干扰）
+            if progress is not None and status != 'retrying':
                 from ...core.events import emit, Events
                 emit(Events.DOWNLOAD_PROGRESS, {
                     'download_id': download_id,
                     'status': status,
                     'progress': progress
                 })
-            
+
         except Exception as e:
             logger.error(f"❌ 更新下载状态失败: {e}")
     

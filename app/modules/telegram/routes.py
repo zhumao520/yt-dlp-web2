@@ -73,7 +73,7 @@ def _process_telegram_message(update, config):
         # 获取消息文本
         text = message.get('text', '').strip()
         logger.info(f"消息内容: '{text}'")
-        
+
         if not text:
             return {'action': 'ignored', 'reason': '空消息'}
 
@@ -104,7 +104,7 @@ def _handle_command(command, config):
     try:
         from .notifier import get_telegram_notifier
         notifier = get_telegram_notifier()
-        
+
         if command.startswith('/start'):
             help_text = """🤖 **YT-DLP Web V2 机器人**
 
@@ -124,9 +124,7 @@ def _handle_command(command, config):
 **示例：**
 `https://www.youtube.com/watch?v=dQw4w9WgXcQ`"""
 
-            logger.info(f"🔍 准备发送/start帮助消息，通知器状态: 启用={notifier.is_enabled()}")
-            result = notifier.send_message(help_text)
-            logger.info(f"📤 /start消息发送结果: {result}")
+            notifier.send_message(help_text)
             return {'action': 'command_processed', 'command': 'start'}
             
         elif command.startswith('/status'):
@@ -235,9 +233,7 @@ def _handle_command(command, config):
 
 🤖 **机器人状态**: 正常运行"""
 
-            logger.info(f"🔍 准备发送/status状态消息，通知器状态: 启用={notifier.is_enabled()}")
-            result = notifier.send_message(status_text)
-            logger.info(f"📤 /status消息发送结果: {result}")
+            notifier.send_message(status_text)
             return {'action': 'command_processed', 'command': 'status'}
             
         elif command.startswith('/downloads'):
@@ -766,23 +762,27 @@ def _send_help_message(config):
     try:
         from .notifier import get_telegram_notifier
         notifier = get_telegram_notifier()
-        
-        help_text = """🤖 **使用说明**
 
-请发送视频链接，我会自动下载并发送给您！
+        help_text = """🤖 **YT-DLP Web V2 机器人**
 
-**支持的网站：**
-• YouTube、Bilibili、Twitter
-• Instagram、TikTok、Facebook
-• 以及其他 1000+ 网站
+欢迎使用！我可以帮您下载视频。
+
+**使用方法：**
+• 直接发送视频链接，我会自动下载并发送给您
+• 支持 YouTube、Bilibili、Twitter 等 1000+ 网站
+
+**命令列表：**
+/start - 显示此帮助信息
+/status - 查看系统状态
+/downloads - 查看下载任务列表
+/files - 查看已下载文件列表
+/debug - 查看调试信息
 
 **示例：**
-`https://www.youtube.com/watch?v=dQw4w9WgXcQ`
+`https://www.youtube.com/watch?v=dQw4w9WgXcQ`"""
 
-发送 /start 查看更多命令"""
-        
         notifier.send_message(help_text)
-        
+
     except Exception as e:
         logger.error(f"发送帮助信息失败: {e}")
 

@@ -61,7 +61,7 @@ class TelegramNotifier:
         logger.debug("✅ Telegram已启用")
         return True
     
-    def send_message(self, message: str, parse_mode: str = 'Markdown') -> bool:
+    def send_message(self, message: str, parse_mode: str = None) -> bool:
         """发送文本消息"""
         logger.info(f"🔍 开始发送Telegram消息，长度: {len(message)} 字符")
 
@@ -147,28 +147,39 @@ class TelegramNotifier:
             logger.error(f"❌ 发送Telegram文件失败: {e}")
             return False
     
-    def _send_message_via_bot_api(self, message: str, parse_mode: str = 'Markdown') -> bool:
+    def _send_message_via_bot_api(self, message: str, parse_mode: str = None) -> bool:
         """通过Bot API发送消息"""
         try:
             url = f"https://api.telegram.org/bot{self.config['bot_token']}/sendMessage"
-            
+
             data = {
                 'chat_id': self.config['chat_id'],
-                'text': message,
-                'parse_mode': parse_mode
+                'text': message
             }
-            
+
+            # 只有当parse_mode不为None时才添加
+            if parse_mode:
+                data['parse_mode'] = parse_mode
+
+            logger.info(f"📤 发送Bot API请求到: {url}")
+            logger.info(f"📤 请求数据: chat_id={self.config['chat_id']}, parse_mode={parse_mode}, 消息长度={len(message)}")
+            logger.info(f"📤 实际发送的消息内容: {repr(message)}")
+
             response = requests.post(url, json=data, timeout=30)
+            logger.info(f"📤 Bot API响应状态: {response.status_code}")
+
             response.raise_for_status()
-            
+
             result = response.json()
+            logger.info(f"📤 Bot API响应内容: {result}")
+
             if result.get('ok'):
-                logger.debug("✅ Bot API消息发送成功")
+                logger.info("✅ Bot API消息发送成功")
                 return True
             else:
                 logger.error(f"❌ Bot API消息发送失败: {result}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"❌ Bot API消息发送异常: {e}")
             return False
@@ -254,15 +265,54 @@ class TelegramNotifier:
         """通过Pyrogram发送消息"""
         try:
             # 在新线程中运行异步操作
+            result = [False]  # 使用列表来在线程间传递结果
+            exception_info = [None]  # 存储异常信息
+
             def run_async():
-                return asyncio.run(self._async_send_message(message, parse_mode))
-            
+                try:
+                    # 创建新的事件循环
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        # 设置事件循环策略以避免Windows上的问题
+                        if hasattr(asyncio, 'WindowsProactorEventLoopPolicy'):
+                            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+                        result[0] = loop.run_until_complete(self._async_send_message(message, parse_mode))
+                    finally:
+                        # 确保正确关闭事件循环
+                        try:
+                            # 取消所有未完成的任务
+                            pending = asyncio.all_tasks(loop)
+                            for task in pending:
+                                task.cancel()
+
+                            # 等待任务完成
+                            if pending:
+                                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                        except Exception as cleanup_e:
+                            logger.debug(f"清理异步任务时出现异常: {cleanup_e}")
+                        finally:
+                            loop.close()
+
+                except Exception as e:
+                    logger.error(f"❌ Pyrogram异步消息发送失败: {e}")
+                    exception_info[0] = str(e)
+                    result[0] = False
+
             thread = threading.Thread(target=run_async, daemon=True)
             thread.start()
-            thread.join(timeout=30)
-            
-            return thread.is_alive() == False  # 如果线程结束说明发送完成
-            
+            thread.join(timeout=30)  # 30秒超时
+
+            if thread.is_alive():
+                logger.error("❌ Pyrogram消息发送超时")
+                return False
+
+            if exception_info[0]:
+                logger.error(f"❌ Pyrogram消息发送异常: {exception_info[0]}")
+
+            return result[0]
+
         except Exception as e:
             logger.error(f"❌ Pyrogram消息发送异常: {e}")
             return False
@@ -280,9 +330,27 @@ class TelegramNotifier:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     try:
+                        # 设置事件循环策略以避免Windows上的问题
+                        if hasattr(asyncio, 'WindowsProactorEventLoopPolicy'):
+                            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
                         result[0] = loop.run_until_complete(self._async_send_file(file_path, caption))
                     finally:
-                        loop.close()
+                        # 确保正确关闭事件循环
+                        try:
+                            # 取消所有未完成的任务
+                            pending = asyncio.all_tasks(loop)
+                            for task in pending:
+                                task.cancel()
+
+                            # 等待任务完成
+                            if pending:
+                                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                        except Exception as cleanup_e:
+                            logger.debug(f"清理异步任务时出现异常: {cleanup_e}")
+                        finally:
+                            loop.close()
+
                 except Exception as e:
                     logger.error(f"❌ Pyrogram异步文件发送失败: {e}")
                     exception_info[0] = str(e)
@@ -307,122 +375,192 @@ class TelegramNotifier:
     
     async def _async_send_message(self, message: str, parse_mode: str = 'Markdown') -> bool:
         """异步发送消息"""
-        try:
-            client = await self._get_pyrogram_client()
-            if not client:
-                return False
-            
-            await client.send_message(
-                chat_id=int(self.config['chat_id']),
-                text=message
-            )
-            
-            logger.debug("✅ Pyrogram消息发送成功")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Pyrogram异步消息发送失败: {e}")
-            return False
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                client = await self._get_pyrogram_client()
+                if not client:
+                    return False
+
+                # 根据 pyrogrammod 文档发送消息
+                await client.send_message(
+                    chat_id=int(self.config['chat_id']),
+                    text=message,
+                    parse_mode=parse_mode if parse_mode != 'Markdown' else None  # pyrogrammod 默认支持 Markdown
+                )
+
+                logger.debug("✅ Pyrogram消息发送成功")
+                return True
+
+            except Exception as e:
+                retry_count += 1
+                error_msg = str(e).lower()
+
+                logger.error(f"❌ Pyrogram异步消息发送失败 (尝试 {retry_count}/{max_retries}): {e}")
+
+                # 检查是否是可重试的错误
+                if any(keyword in error_msg for keyword in ['timeout', 'connection', 'network', 'flood']) and retry_count < max_retries:
+                    wait_time = retry_count * 2  # 递增等待时间
+                    logger.info(f"🔄 等待 {wait_time} 秒后重试...")
+                    await asyncio.sleep(wait_time)
+                    continue
+
+                # 如果是不可重试的错误或达到最大重试次数，直接返回失败
+                break
+
+        logger.error(f"❌ Pyrogram消息发送失败，已达到最大重试次数 ({max_retries})")
+        return False
     
     async def _async_send_file(self, file_path: str, caption: str = None) -> bool:
         """异步发送文件 - 智能选择发送类型"""
         client = None
-        try:
-            client = await self._get_pyrogram_client()
-            if not client:
-                logger.error("❌ 无法获取Pyrogram客户端")
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                client = await self._get_pyrogram_client()
+                if not client:
+                    logger.error("❌ 无法获取Pyrogram客户端")
+                    return False
+
+                # 确保客户端已连接
+                if not client.is_connected:
+                    logger.info("🔄 Pyrogram客户端未连接，尝试重新连接...")
+                    await client.start()
+
+                file_path_obj = Path(file_path)
+
+                # 检查文件是否存在
+                if not file_path_obj.exists():
+                    logger.error(f"❌ 文件不存在: {file_path}")
+                    return False
+
+                # 检查文件类型并选择合适的发送方法
+                if self._is_video_file(file_path_obj):
+                    # 获取视频分辨率
+                    width, height = self._get_video_resolution(file_path)
+
+                    # 视频文件使用send_video，根据 pyrogrammod 文档优化参数
+                    await client.send_video(
+                        chat_id=int(self.config['chat_id']),
+                        video=file_path,
+                        caption=caption or '',
+                        supports_streaming=True,  # 支持流媒体播放
+                        width=width,   # 动态宽度
+                        height=height,  # 动态高度
+                        file_name=file_path_obj.name  # 指定文件名
+                    )
+                    logger.info("✅ Pyrogram视频发送成功")
+                else:
+                    # 其他文件使用send_document，根据 pyrogrammod 文档优化参数
+                    await client.send_document(
+                        chat_id=int(self.config['chat_id']),
+                        document=file_path,
+                        caption=caption or '',
+                        file_name=file_path_obj.name  # 指定文件名
+                    )
+                    logger.info("✅ Pyrogram文档发送成功")
+
+                return True
+
+            except Exception as e:
+                retry_count += 1
+                error_msg = str(e).lower()
+
+                logger.error(f"❌ Pyrogram异步文件发送失败 (尝试 {retry_count}/{max_retries}): {e}")
+
+                # 检查是否是可重试的错误
+                if any(keyword in error_msg for keyword in ['timeout', 'connection', 'network', 'flood']):
+                    if retry_count < max_retries:
+                        wait_time = retry_count * 2  # 递增等待时间
+                        logger.info(f"🔄 等待 {wait_time} 秒后重试...")
+                        await asyncio.sleep(wait_time)
+
+                        # 重置客户端连接
+                        if client:
+                            try:
+                                await client.stop()
+                                self.pyrogram_client = None
+                            except:
+                                pass
+                        continue
+
+                # 如果是不可重试的错误或达到最大重试次数，直接返回失败
+                if client and "connection" in error_msg:
+                    try:
+                        logger.info("🔄 检测到连接问题，重置Pyrogram客户端...")
+                        await client.stop()
+                        self.pyrogram_client = None
+                    except:
+                        pass
+
                 return False
 
-            # 确保客户端已连接
-            if not client.is_connected:
-                logger.info("🔄 Pyrogram客户端未连接，尝试重新连接...")
-                await client.start()
-
-            file_path_obj = Path(file_path)
-
-            # 检查文件类型并选择合适的发送方法
-            if self._is_video_file(file_path_obj):
-                # 获取视频分辨率
-                width, height = self._get_video_resolution(file_path)
-
-                # 视频文件使用send_video
-                await client.send_video(
-                    chat_id=int(self.config['chat_id']),
-                    video=file_path,
-                    caption=caption or '',
-                    supports_streaming=True,  # 支持流媒体播放
-                    width=width,   # 动态宽度
-                    height=height  # 动态高度
-                )
-                logger.info("✅ Pyrogram视频发送成功")
-            else:
-                # 其他文件使用send_document
-                await client.send_document(
-                    chat_id=int(self.config['chat_id']),
-                    document=file_path,
-                    caption=caption or ''
-                )
-                logger.info("✅ Pyrogram文档发送成功")
-
-            return True
-
-        except Exception as e:
-            logger.error(f"❌ Pyrogram异步文件发送失败: {e}")
-
-            # 如果连接失败，尝试清理并重置客户端
-            if client and "connection" in str(e).lower():
-                try:
-                    logger.info("🔄 检测到连接问题，重置Pyrogram客户端...")
-                    await client.stop()
-                    self.pyrogram_client = None
-                except:
-                    pass
-
-            return False
+        logger.error(f"❌ Pyrogram文件发送失败，已达到最大重试次数 ({max_retries})")
+        return False
     
     async def _get_pyrogram_client(self):
         """获取Pyrogram客户端"""
-        try:
-            # 检查必要的配置
-            if not all([self.config.get('api_id'), self.config.get('api_hash'), self.config.get('bot_token')]):
-                logger.error("❌ Pyrogram配置不完整")
-                return None
+        max_retries = 3
+        retry_count = 0
 
-            if not self.pyrogram_client:
-                from pyrogram import Client
+        while retry_count < max_retries:
+            try:
+                # 检查必要的配置
+                if not all([self.config.get('api_id'), self.config.get('api_hash'), self.config.get('bot_token')]):
+                    logger.error("❌ Pyrogram配置不完整")
+                    return None
 
-                # 创建客户端时添加更多配置
-                self.pyrogram_client = Client(
-                    name="ytdlp_bot",
-                    api_id=int(self.config['api_id']),
-                    api_hash=self.config['api_hash'],
-                    bot_token=self.config['bot_token'],
-                    workers=1,
-                    no_updates=True,
-                    sleep_threshold=60,  # 防止flood wait
-                    max_concurrent_transmissions=1  # 限制并发传输
-                )
+                if not self.pyrogram_client:
+                    from pyrogram import Client
 
-                logger.info("🔧 创建新的Pyrogram客户端")
+                    # 创建客户端，使用基本配置确保兼容性
+                    self.pyrogram_client = Client(
+                        name="ytdlp_bot",
+                        api_id=int(self.config['api_id']),
+                        api_hash=self.config['api_hash'],
+                        bot_token=self.config['bot_token']
+                    )
 
-            # 检查连接状态
-            if not self.pyrogram_client.is_connected:
-                logger.info("🔄 启动Pyrogram客户端...")
-                await self.pyrogram_client.start()
-                logger.info("✅ Pyrogram客户端已连接")
+                    logger.info("🔧 创建新的Pyrogram客户端")
 
-            return self.pyrogram_client
+                # 检查连接状态
+                if not self.pyrogram_client.is_connected:
+                    logger.info("🔄 启动Pyrogram客户端...")
+                    await self.pyrogram_client.start()
+                    logger.info("✅ Pyrogram客户端已连接")
 
-        except Exception as e:
-            logger.error(f"❌ 获取Pyrogram客户端失败: {e}")
-            # 清理失败的客户端
-            if self.pyrogram_client:
-                try:
-                    await self.pyrogram_client.stop()
-                except:
-                    pass
-                self.pyrogram_client = None
-            return None
+                return self.pyrogram_client
+
+            except Exception as e:
+                retry_count += 1
+                error_msg = str(e).lower()
+
+                logger.error(f"❌ 获取Pyrogram客户端失败 (尝试 {retry_count}/{max_retries}): {e}")
+
+                # 清理失败的客户端
+                if self.pyrogram_client:
+                    try:
+                        await self.pyrogram_client.stop()
+                    except:
+                        pass
+                    self.pyrogram_client = None
+
+                # 检查是否是可重试的错误
+                if any(keyword in error_msg for keyword in ['timeout', 'connection', 'network']) and retry_count < max_retries:
+                    wait_time = retry_count * 2  # 递增等待时间
+                    logger.info(f"🔄 等待 {wait_time} 秒后重试...")
+                    await asyncio.sleep(wait_time)
+                    continue
+
+                # 如果是不可重试的错误或达到最大重试次数，直接返回None
+                break
+
+        logger.error(f"❌ 无法获取Pyrogram客户端，已达到最大重试次数 ({max_retries})")
+        return None
 
     def _is_video_file(self, file_path: Path) -> bool:
         """检查是否为视频文件"""
@@ -509,16 +647,34 @@ class TelegramNotifier:
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
                         try:
-                            if self.pyrogram_client.is_connected:
+                            # 设置事件循环策略以避免Windows上的问题
+                            if hasattr(asyncio, 'WindowsProactorEventLoopPolicy'):
+                                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+                            if self.pyrogram_client and self.pyrogram_client.is_connected:
                                 loop.run_until_complete(self.pyrogram_client.stop())
                         finally:
-                            loop.close()
+                            # 确保正确关闭事件循环
+                            try:
+                                # 取消所有未完成的任务
+                                pending = asyncio.all_tasks(loop)
+                                for task in pending:
+                                    task.cancel()
+
+                                # 等待任务完成
+                                if pending:
+                                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                            except Exception as cleanup_e:
+                                logger.debug(f"清理异步任务时出现异常: {cleanup_e}")
+                            finally:
+                                loop.close()
+
                     except Exception as e:
                         logger.debug(f"停止Pyrogram客户端时出现异常: {e}")
 
                 thread = threading.Thread(target=stop_client, daemon=True)
                 thread.start()
-                thread.join(timeout=10)  # 增加超时时间
+                thread.join(timeout=15)  # 增加超时时间
 
                 self.pyrogram_client = None
                 logger.info("✅ Pyrogram客户端已清理")

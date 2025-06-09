@@ -152,7 +152,7 @@
     <nav class="navbar navbar-expand-lg">
         <div class="container-fluid">
             <!-- Logo -->
-            <a class="navbar-brand fw-bold text-primary" href="{{ url_for('main.download') }}">
+            <a class="navbar-brand fw-bold text-primary" href="{{ url_for('main.index') }}">
                 YT-DLP Web V2
             </a>
             
@@ -165,7 +165,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.download') }}">
+                        <a class="nav-link" href="{{ url_for('main.index') }}">
                             <i class="bi bi-download me-1"></i>下载
                         </a>
                     </li>
@@ -373,15 +373,17 @@
                     ...(token && { 'Authorization': `Bearer ${token}` })
                 }
             };
-            
+
             const response = await fetch(url, { ...defaultOptions, ...options });
-            
+
             if (response.status === 401) {
+                // 清除所有token存储
                 localStorage.removeItem('auth_token');
-                window.location.href = '/auth/login';
+                document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                window.location.href = '/auth/login?token_expired=1';
                 return;
             }
-            
+
             return response;
         };
         

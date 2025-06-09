@@ -202,7 +202,7 @@ def auth_required(f):
             if request.is_json:
                 return jsonify({'error': '认证无效或已过期'}), 401
             else:
-                return redirect(url_for('auth.login'))
+                return redirect(url_for('auth.login', token_expired='1'))
         
         # 将用户信息添加到请求上下文
         request.current_user = payload
@@ -229,7 +229,7 @@ def admin_required(f):
             if request.is_json:
                 return jsonify({'error': '认证无效或已过期'}), 401
             else:
-                return redirect(url_for('auth.login'))
+                return redirect(url_for('auth.login', token_expired='1'))
         
         if not payload.get('is_admin', False):
             if request.is_json:
